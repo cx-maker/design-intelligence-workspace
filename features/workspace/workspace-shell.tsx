@@ -4,6 +4,7 @@ import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from
 
 type WorkflowStep = "brand" | "references" | "generate" | "review" | "deliver";
 type Section = "projects" | "library" | "settings";
+type ProjectSummary = { id:string; name:string; step:WorkflowStep; updatedAt:number };
 type AssetFile = { id: string; name: string; url: string; raw: string };
 type Material = { id: string; name: string; description: string; referenceName?: string; referenceUrl?: string };
 type Ratios = Record<string, number>;
@@ -37,32 +38,79 @@ function extractSvgColors(raw:string){
 function makeAsset(file:File, raw:string):AssetFile { return {id:`${Date.now()}-${Math.random()}`,name:file.name,url:URL.createObjectURL(file),raw}; }
 
 export function WorkspaceShell(){
-  const [section,setSection]=useState<Section>("projects"); const [started,setStarted]=useState(false); const [step,setStep]=useState<WorkflowStep>("brand"); const [dark,setDark]=useState(true);
+  const [section,setSection]=useState<Section>("projects");
+  const [started,setStarted]=useState(false);
+  const [step,setStep]=useState<WorkflowStep>("brand");
+  const [dark,setDark]=useState(true);
+  const [projects,setProjects]=useState<ProjectSummary[]>([{id:"project-1",name:"新品牌方向",step:"brand",updatedAt:Date.now()}]);
+  const [activeProjectId,setActiveProjectId]=useState("project-1");
+
   const [graphic,setGraphic]=useState<AssetFile|null>(null); const [cnTexts,setCnTexts]=useState<AssetFile[]>([]); const [enTexts,setEnTexts]=useState<AssetFile[]>([]);
   const [brandColor,setBrandColor]=useState("#008FDB"); const [auxiliaryColors,setAuxiliaryColors]=useState<string[]>([]); const [assetsConfirmed,setAssetsConfirmed]=useState(false);
   const [selectedExtensions,setSelectedExtensions]=useState<string[]>(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); const [selectedBoundaries,setSelectedBoundaries]=useState<string[]>(boundaryOptions);
   const [ratios,setRatios]=useState<Ratios>({black:20,white:45,brand:30}); const [materials,setMaterials]=useState<Material[]>(defaultMaterials); const [rulesConfirmed,setRulesConfirmed]=useState(false);
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
+
+  const activeProject=projects.find(p=>p.id===activeProjectId)||projects[0];
   useEffect(()=>{ if(!graphic) return; const colors=extractSvgColors(graphic.raw); if(colors.length){ setBrandColor(colors[0]); setAuxiliaryColors(colors.slice(1,5)); } },[graphic]);
-  const stepIndex=steps.findIndex(x=>x.id===step); const move=(d:1|-1)=>setStep(steps[Math.max(0,Math.min(4,stepIndex+d))].id);
+  useEffect(()=>{ setProjects(prev=>prev.map(p=>p.id===activeProjectId?{...p,step,updatedAt:Date.now()}:p)); },[step,activeProjectId]);
+
+  const resetWorkspace=()=>{
+    setStep("brand"); setGraphic(null); setCnTexts([]); setEnTexts([]); setBrandColor("#008FDB"); setAuxiliaryColors([]); setAssetsConfirmed(false);
+    setSelectedExtensions(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); setSelectedBoundaries(boundaryOptions); setRatios({black:20,white:45,brand:30});
+    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]);
+  };
+  const createProject=(name:string)=>{
+    const clean=name.trim(); if(!clean) return;
+    const id=`project-${Date.now()}`;
+    setProjects(prev=>[{id,name:clean,step:"brand",updatedAt:Date.now()},...prev]);
+    setActiveProjectId(id);
+    resetWorkspace();
+    setStarted(false);
+    setSection("projects");
+  };
+  const openCurrent=()=>{ setStep(activeProject?.step||"brand"); setStarted(true); };
+  const stepIndex=steps.findIndex(x=>x.id===step);
+  const move=(d:1|-1)=>setStep(steps[Math.max(0,Math.min(4,stepIndex+d))].id);
   const canContinue=useMemo(()=> step==="brand"?!!graphic:step==="references"?assetsConfirmed:step==="generate"?(rulesConfirmed&&materials.length>0):step==="review"?(generated&&approved.length>0):true,[step,graphic,assetsConfirmed,rulesConfirmed,materials.length,generated,approved.length]);
-  if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} onStart={()=>setStarted(true)}/>;
+
+  if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject}/>;
+
   return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onHome={()=>setStarted(false)}/><section className="workflow">
-    <header className="topbar"><div><button className="crumb" onClick={()=>setStarted(false)}>项目</button><span> / 当前品牌方向</span></div><div className="step-count">第 {stepIndex+1} 步，共 5 步</div></header><div className="progress"><span style={{width:`${((stepIndex+1)/5)*100}%`}}/></div>
+    <header className="topbar"><div><button className="crumb" onClick={()=>setStarted(false)}>项目</button><span> / {activeProject?.name||"当前项目"}</span></div><div className="step-count">第 {stepIndex+1} 步，共 5 步</div></header><div className="progress"><span style={{width:`${((stepIndex+1)/5)*100}%`}}/></div>
     <div className="stepper">{steps.map((x,i)=><button key={x.id} className={i<=stepIndex?"active":""} onClick={()=>i<=stepIndex&&setStep(x.id)}><i>{i+1}</i>{x.label}</button>)}</div>
     <div className="content">
-      {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>} 
-      {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>} 
-      {step==="generate"&&<Rules selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions} selectedBoundaries={selectedBoundaries} setSelectedBoundaries={setSelectedBoundaries} ratios={ratios} setRatios={setRatios} brandColor={brandColor} auxiliaryColors={auxiliaryColors} materials={materials} setMaterials={setMaterials} confirmed={rulesConfirmed} setConfirmed={setRulesConfirmed}/>} 
-      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated}/>} 
-      {step==="deliver"&&<ExportVectors graphic={graphic} brandColor={brandColor} materials={materials} approved={approved}/>} 
+      {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
+      {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
+      {step==="generate"&&<Rules selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions} selectedBoundaries={selectedBoundaries} setSelectedBoundaries={setSelectedBoundaries} ratios={ratios} setRatios={setRatios} brandColor={brandColor} auxiliaryColors={auxiliaryColors} materials={materials} setMaterials={setMaterials} confirmed={rulesConfirmed} setConfirmed={setRulesConfirmed}/>}
+      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated}/>}
+      {step==="deliver"&&<ExportVectors graphic={graphic} brandColor={brandColor} materials={materials} approved={approved}/>}
     </div>
-    <footer className="footer"><button className="text-btn" disabled={stepIndex===0} onClick={()=>move(-1)}>← 返回</button><button className="primary footer-primary" disabled={!canContinue} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button></footer>
+    <footer className="footer">
+      <button className="secondary footer-nav-button" onClick={()=>stepIndex===0?setStarted(false):move(-1)}>← 返回</button>
+      <button className="primary footer-nav-button footer-primary" disabled={!canContinue} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button>
+    </footer>
   </section></main>;
 }
 
 function Sidebar({section,setSection,dark,setDark,onHome}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;onHome:()=>void}){ const names:Record<Section,string>={projects:"项目",library:"资料库",settings:"设置"}; return <aside className="sidebar"><button className="mark mark-btn" onClick={onHome}>DI</button><nav>{(["projects","library","settings"] as const).map(x=><button key={x} className={section===x?"nav-on":""} onClick={()=>{setSection(x);onHome();}}>{names[x]}</button>)}</nav><button className="theme-toggle" onClick={()=>setDark(!dark)}><span>{dark?"☀":"☾"}</span>{dark?"日间":"黑夜"}</button></aside>; }
-function Home({section,setSection,dark,setDark,onStart}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;onStart:()=>void}){ return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onHome={()=>setSection("projects")}/><section className="home">{section==="projects"&&<><p className="eyebrow">Design Intelligence Workspace</p><h1>用一个确定的 Logo，快速试出一整套品牌氛围。</h1><p className="muted home-intro">上传图形与文字资产，选择延展方式和物料，让工作台快速生成提案级二维品牌应用。</p><button className="continue-card" onClick={onStart}><div><span>当前项目</span><h2>新品牌方向</h2><p>等待导入 Logo 图形</p></div><b>开始 →</b></button><div className="heading-row"><h3>最近项目</h3><button className="text-btn" onClick={onStart}>+ 新建项目</button></div><div className="empty-projects">最近项目会在保存后出现在这里。</div></>}{section==="library"&&<Library/>}{section==="settings"&&<Settings/>}</section></main>; }
+function Home({section,setSection,dark,setDark,projects,activeProjectId,onStart,onCreateProject}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;projects:ProjectSummary[];activeProjectId:string;onStart:()=>void;onCreateProject:(name:string)=>void}){
+  const [showNew,setShowNew]=useState(false); const [projectName,setProjectName]=useState("");
+  const active=projects.find(p=>p.id===activeProjectId)||projects[0];
+  const recent=projects.filter(p=>p.id!==activeProjectId).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const progressText=(p:ProjectSummary)=>{const i=Math.max(0,steps.findIndex(x=>x.id===p.step));return `第 ${i+1}/5 步 · ${steps[i]?.label||"导入资产"}`};
+  const create=()=>{if(!projectName.trim())return;onCreateProject(projectName.trim());setProjectName("");setShowNew(false)};
+  return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onHome={()=>setSection("projects")}/><section className="home">
+    {section==="projects"&&<>
+      <p className="eyebrow">Design Intelligence Workspace</p><h1>用一个确定的 Logo，快速试出一整套品牌氛围。</h1><p className="muted home-intro">上传图形与文字资产，选择延展方式和物料，让工作台快速生成提案级二维品牌应用。</p>
+      {active&&<button className="continue-card current-project-card" onClick={onStart}><div><span>当前项目</span><h2>{active.name}</h2><p>{progressText(active)}</p></div></button>}
+      <div className="heading-row"><h3>最近项目</h3><button className="secondary new-project-button" onClick={()=>setShowNew(true)}>+ 新建项目</button></div>
+      {recent.length?<div className="recent-projects">{recent.map(p=><div className="recent-project-card" key={p.id}><span>项目</span><h4>{p.name}</h4><p>{progressText(p)}</p></div>)}</div>:<div className="empty-projects">新建项目后，之前的当前项目会移动到这里。</div>}
+    </>}
+    {section==="library"&&<Library/>}{section==="settings"&&<Settings/>}
+    {showNew&&<div className="project-modal-backdrop" onClick={()=>setShowNew(false)}><div className="project-modal" onClick={e=>e.stopPropagation()}><span className="rule-tag">新建项目</span><h3>给这个品牌方向起个名字。</h3><input autoFocus value={projectName} onChange={e=>setProjectName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} placeholder="例如：唐睛方向 A"/><div><button className="secondary" onClick={()=>setShowNew(false)}>取消</button><button className="primary" disabled={!projectName.trim()} onClick={create}>新建项目</button></div></div></div>}
+  </section></main>;
+}
 
 function SingleAsset({title,hint,asset,required,onChange}:{title:string;hint:string;asset:AssetFile|null;required?:boolean;onChange:(x:AssetFile)=>void}){ const ref=useRef<HTMLInputElement>(null); const load=async(e:ChangeEvent<HTMLInputElement>)=>{const f=e.target.files?.[0];if(!f)return;if(!f.name.toLowerCase().endsWith('.svg')){alert('当前版本仅支持 SVG 矢量文件。');return;}onChange(makeAsset(f,await f.text()));e.target.value='';}; return <div className="asset-upload"><input ref={ref} hidden type="file" accept=".svg,image/svg+xml" onChange={load}/><div className="asset-upload-preview white-preview">{asset?<img src={asset.url} alt=""/>:<span>SVG</span>}</div><div><div className="asset-title-row"><b>{title}</b>{required&&<em>必填</em>}</div><p>{asset?asset.name:hint}</p></div><button className="secondary" onClick={()=>ref.current?.click()}>{asset?"重新选择":"选择文件"}</button></div>; }
 function MultiAssets({title,hint,assets,setAssets}:{title:string;hint:string;assets:AssetFile[];setAssets:(x:AssetFile[])=>void}){ const ref=useRef<HTMLInputElement>(null); const load=async(e:ChangeEvent<HTMLInputElement>)=>{const files=[...(e.target.files||[])]; const valid=files.filter(f=>f.name.toLowerCase().endsWith('.svg')); const loaded=await Promise.all(valid.map(async f=>makeAsset(f,await f.text()))); setAssets([...assets,...loaded]);e.target.value='';}; return <div className="multi-upload"><div className="multi-upload-head"><div><b>{title}</b><p>{hint}</p></div><button className="secondary" onClick={()=>ref.current?.click()}>+ 添加版式</button><input ref={ref} hidden multiple type="file" accept=".svg,image/svg+xml" onChange={load}/></div>{assets.length?<div className="variant-grid">{assets.map((a,i)=><div className="variant-card" key={a.id}><div className="white-preview"><img src={a.url} alt=""/></div><span>版式 {i+1}</span><small>{a.name}</small><button onClick={()=>setAssets(assets.filter(x=>x.id!==a.id))}>删除</button></div>)}</div>:<div className="variant-empty">尚未提供，可跳过。</div>}</div>; }

@@ -14,3 +14,40 @@
 .sidebar{position:sticky!important;top:0!important;height:100vh!important;min-height:100vh!important;align-self:flex-start!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
 .sidebar nav{flex:0 0 auto}.theme-toggle{margin-top:auto!important;position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;flex:0 0 auto}
 .ratio-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.provider-switch{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:4px;background:rgba(127,127,127,.1);border-radius:8px}.provider-switch button{border:0;background:transparent;color:inherit;border-radius:6px;padding:9px;font-size:11px;font-weight:700;opacity:.6}.provider-switch button.selected{background:#fff;color:#17191c;opacity:1;box-shadow:0 1px 4px rgba(0,0,0,.08)}.api-settings select{border:1px solid var(--line);background:transparent;color:inherit;border-radius:7px;padding:11px}.relay-warning{padding:11px 12px;border:1px solid #6c5534;border-radius:7px;background:rgba(145,100,38,.08);line-height:1.6}.dark .provider-switch button.selected{background:#f2f3f4;color:#17191c}@media(max-width:800px){.ratio-controls{grid-template-columns:1fr}}
+
+
+/* v6: project flow + stronger step navigation */
+.current-project-card{cursor:pointer;text-align:left}
+.current-project-card>b{display:none!important}
+.heading-row{align-items:center}
+.new-project-button{font-size:11px;padding:8px 11px}
+.recent-projects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;max-width:760px}
+.recent-project-card{border:1px solid var(--line);border-radius:10px;padding:15px;background:#fff}
+.recent-project-card>span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.recent-project-card h4{font-size:15px;margin:7px 0 5px}
+.recent-project-card p{font-size:10px;color:var(--muted);margin:0}
+.dark .recent-project-card{background:#202326;border-color:#34383d}
+
+.project-modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.58);display:grid;place-items:center;padding:20px}
+.project-modal{width:min(430px,94vw);border-radius:12px;padding:22px;background:#fff;color:#17191c;box-shadow:0 28px 90px rgba(0,0,0,.28)}
+.project-modal h3{margin:0 0 16px;font-size:18px}
+.project-modal input{width:100%;border:1px solid #d8d8d5;border-radius:8px;padding:12px;font:inherit;margin-bottom:14px}
+.project-modal>div{display:flex;justify-content:flex-end;gap:8px}
+.dark .project-modal{background:#202326;color:#f2f3f4}
+.dark .project-modal input{background:#181a1d;color:#f2f3f4;border-color:#3a3f44}
+
+.stepper{gap:26px!important;padding-top:14px!important;padding-bottom:14px!important}
+.stepper button{gap:9px!important;font-size:11px!important}
+.stepper button i{width:24px!important;height:24px!important;font-size:11px!important;font-weight:800!important}
+.footer-nav-button{min-width:92px!important;height:38px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
+.footer .secondary.footer-nav-button{background:transparent}
+.dark .footer .secondary.footer-nav-button{background:#202326;color:#f2f3f4;border-color:#3a3f44}
+
+.generate-btn{background:#138AF5!important;color:#fff!important;border-color:#138AF5!important;box-shadow:0 8px 24px rgba(19,138,245,.18)}
+.generate-btn:hover{filter:brightness(1.06)}
+.generate-btn:disabled{background:#4f6477!important;color:#b9c4cf!important;box-shadow:none}
+
+@media(max-width:800px){
+  .recent-projects{grid-template-columns:1fr}
+  .stepper{gap:12px!important;overflow-x:auto}
+}
