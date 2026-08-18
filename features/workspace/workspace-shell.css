@@ -51,3 +51,8 @@
   .recent-projects{grid-template-columns:1fr}
   .stepper{gap:12px!important;overflow-x:auto}
 }
+
+/* v6.1: recent project selection */
+.recent-project-card{appearance:none;width:100%;text-align:left;color:inherit;cursor:pointer;font:inherit;transition:border-color .16s ease,background .16s ease,transform .16s ease}
+.recent-project-card:hover{border-color:#4d5962;transform:translateY(-1px)}
+.dark .recent-project-card:hover{background:#25292d;border-color:#4a535b}

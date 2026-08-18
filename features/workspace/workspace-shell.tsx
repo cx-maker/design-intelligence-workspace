@@ -70,11 +70,18 @@ export function WorkspaceShell(){
     setSection("projects");
   };
   const openCurrent=()=>{ setStep(activeProject?.step||"brand"); setStarted(true); };
+  const switchProject=(id:string)=>{
+    const target=projects.find(p=>p.id===id); if(!target) return;
+    setActiveProjectId(id);
+    setStep(target.step);
+    setStarted(false);
+    setSection("projects");
+  };
   const stepIndex=steps.findIndex(x=>x.id===step);
   const move=(d:1|-1)=>setStep(steps[Math.max(0,Math.min(4,stepIndex+d))].id);
   const canContinue=useMemo(()=> step==="brand"?!!graphic:step==="references"?assetsConfirmed:step==="generate"?(rulesConfirmed&&materials.length>0):step==="review"?(generated&&approved.length>0):true,[step,graphic,assetsConfirmed,rulesConfirmed,materials.length,generated,approved.length]);
 
-  if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject}/>;
+  if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject} onSelectProject={switchProject}/>;
 
   return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onHome={()=>setStarted(false)}/><section className="workflow">
     <header className="topbar"><div><button className="crumb" onClick={()=>setStarted(false)}>项目</button><span> / {activeProject?.name||"当前项目"}</span></div><div className="step-count">第 {stepIndex+1} 步，共 5 步</div></header><div className="progress"><span style={{width:`${((stepIndex+1)/5)*100}%`}}/></div>
@@ -94,7 +101,7 @@ export function WorkspaceShell(){
 }
 
 function Sidebar({section,setSection,dark,setDark,onHome}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;onHome:()=>void}){ const names:Record<Section,string>={projects:"项目",library:"资料库",settings:"设置"}; return <aside className="sidebar"><button className="mark mark-btn" onClick={onHome}>DI</button><nav>{(["projects","library","settings"] as const).map(x=><button key={x} className={section===x?"nav-on":""} onClick={()=>{setSection(x);onHome();}}>{names[x]}</button>)}</nav><button className="theme-toggle" onClick={()=>setDark(!dark)}><span>{dark?"☀":"☾"}</span>{dark?"日间":"黑夜"}</button></aside>; }
-function Home({section,setSection,dark,setDark,projects,activeProjectId,onStart,onCreateProject}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;projects:ProjectSummary[];activeProjectId:string;onStart:()=>void;onCreateProject:(name:string)=>void}){
+function Home({section,setSection,dark,setDark,projects,activeProjectId,onStart,onCreateProject,onSelectProject}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;projects:ProjectSummary[];activeProjectId:string;onStart:()=>void;onCreateProject:(name:string)=>void;onSelectProject:(id:string)=>void}){
   const [showNew,setShowNew]=useState(false); const [projectName,setProjectName]=useState("");
   const active=projects.find(p=>p.id===activeProjectId)||projects[0];
   const recent=projects.filter(p=>p.id!==activeProjectId).sort((a,b)=>b.updatedAt-a.updatedAt);
@@ -105,7 +112,7 @@ function Home({section,setSection,dark,setDark,projects,activeProjectId,onStart,
       <p className="eyebrow">Design Intelligence Workspace</p><h1>用一个确定的 Logo，快速试出一整套品牌氛围。</h1><p className="muted home-intro">上传图形与文字资产，选择延展方式和物料，让工作台快速生成提案级二维品牌应用。</p>
       {active&&<button className="continue-card current-project-card" onClick={onStart}><div><span>当前项目</span><h2>{active.name}</h2><p>{progressText(active)}</p></div></button>}
       <div className="heading-row"><h3>最近项目</h3><button className="secondary new-project-button" onClick={()=>setShowNew(true)}>+ 新建项目</button></div>
-      {recent.length?<div className="recent-projects">{recent.map(p=><div className="recent-project-card" key={p.id}><span>项目</span><h4>{p.name}</h4><p>{progressText(p)}</p></div>)}</div>:<div className="empty-projects">新建项目后，之前的当前项目会移动到这里。</div>}
+      {recent.length?<div className="recent-projects">{recent.map(p=><button className="recent-project-card" key={p.id} onClick={()=>onSelectProject(p.id)}><span>项目</span><h4>{p.name}</h4><p>{progressText(p)}</p></button>)}</div>:<div className="empty-projects">新建项目后，之前的当前项目会移动到这里。</div>}
     </>}
     {section==="library"&&<Library/>}{section==="settings"&&<Settings/>}
     {showNew&&<div className="project-modal-backdrop" onClick={()=>setShowNew(false)}><div className="project-modal" onClick={e=>e.stopPropagation()}><span className="rule-tag">新建项目</span><h3>给这个品牌方向起个名字。</h3><input autoFocus value={projectName} onChange={e=>setProjectName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} placeholder="例如：唐睛方向 A"/><div><button className="secondary" onClick={()=>setShowNew(false)}>取消</button><button className="primary" disabled={!projectName.trim()} onClick={create}>新建项目</button></div></div></div>}
