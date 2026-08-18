@@ -50,8 +50,10 @@ export function WorkspaceShell(){
   const [selectedExtensions,setSelectedExtensions]=useState<string[]>(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); const [selectedBoundaries,setSelectedBoundaries]=useState<string[]>(boundaryOptions);
   const [ratios,setRatios]=useState<Ratios>({black:20,white:45,brand:30}); const [materials,setMaterials]=useState<Material[]>(defaultMaterials); const [rulesConfirmed,setRulesConfirmed]=useState(false);
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
+  const [currentModel,setCurrentModel]=useState("");
 
   const activeProject=projects.find(p=>p.id===activeProjectId)||projects[0];
+  useEffect(()=>{ const api=readApiSettings(); setCurrentModel(api.model||""); },[started,step,section]);
   useEffect(()=>{ if(!graphic) return; const colors=extractSvgColors(graphic.raw); if(colors.length){ setBrandColor(colors[0]); setAuxiliaryColors(colors.slice(1,5)); } },[graphic]);
   useEffect(()=>{ setProjects(prev=>prev.map(p=>p.id===activeProjectId?{...p,step,updatedAt:Date.now()}:p)); },[step,activeProjectId]);
 
@@ -91,12 +93,12 @@ export function WorkspaceShell(){
       {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
       {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
       {step==="generate"&&<Rules selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions} selectedBoundaries={selectedBoundaries} setSelectedBoundaries={setSelectedBoundaries} ratios={ratios} setRatios={setRatios} brandColor={brandColor} auxiliaryColors={auxiliaryColors} materials={materials} setMaterials={setMaterials} confirmed={rulesConfirmed} setConfirmed={setRulesConfirmed}/>}
-      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated}/>}
+      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel}/>}
       {step==="deliver"&&<ExportVectors graphic={graphic} brandColor={brandColor} materials={materials} approved={approved}/>}
     </div>
     <footer className="footer">
       <button className="secondary footer-nav-button" onClick={()=>stepIndex===0?setStarted(false):move(-1)}>← 返回</button>
-      <button className="primary footer-nav-button footer-primary" disabled={!canContinue} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button>
+      <button className={`primary footer-nav-button footer-primary ${canContinue?"is-ready":""}`} disabled={!canContinue} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button>
     </footer>
   </section></main>;
 }
@@ -149,21 +151,160 @@ function ColorRatio({ratios,setRatios,brandColor,auxiliaryColors}:{ratios:Ratios
 }
 function Rules({selectedExtensions,setSelectedExtensions,selectedBoundaries,setSelectedBoundaries,ratios,setRatios,brandColor,auxiliaryColors,materials,setMaterials,confirmed,setConfirmed}:{selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void;selectedBoundaries:string[];setSelectedBoundaries:(x:string[])=>void;ratios:Ratios;setRatios:(x:Ratios)=>void;brandColor:string;auxiliaryColors:string[];materials:Material[];setMaterials:(x:Material[])=>void;confirmed:boolean;setConfirmed:(x:boolean)=>void}){ const update=(id:string,p:Partial<Material>)=>setMaterials(materials.map(m=>m.id===id?{...m,...p}:m)); const add=()=>setMaterials([...materials,{id:`custom-${Date.now()}`,name:"新物料",description:""}]); const refInput=(id:string,e:ChangeEvent<HTMLInputElement>)=>{const f=e.target.files?.[0];if(f)update(id,{referenceName:f.name,referenceUrl:URL.createObjectURL(f)})}; return <div className="rules-page"><p className="eyebrow">第 3 步 · 延展规则</p><h1>把你的判断变成 AI 的设计指令。</h1><p className="muted">前端只是把复杂 Prompt 变成简单选择题；真正生成时，所有选项、比例、描述和参考图都会一起进入 AI 指令。</p><section className="rule-card"><span className="rule-tag">Logo 延展方式 · 多选</span><ToggleChips options={extensionOptions} selected={selectedExtensions} setSelected={setSelectedExtensions}/></section><section className="rule-card"><span className="rule-tag">颜色使用倾向</span><ColorRatio ratios={ratios} setRatios={setRatios} brandColor={brandColor} auxiliaryColors={auxiliaryColors}/></section><section className="rule-card"><span className="rule-tag">视觉边界 · 多选</span><ToggleChips options={boundaryOptions} selected={selectedBoundaries} setSelected={setSelectedBoundaries}/></section><section className="rule-card"><div className="rule-head"><div><span className="rule-tag">首轮物料</span><h3>告诉 AI 这次要做什么。</h3></div><button className="secondary" onClick={add}>+ 新增物料</button></div><div className="material-editor-list">{materials.map((m,index)=><div className="material-editor" key={m.id}><div className="material-number">{String(index+1).padStart(2,"0")}</div><div className="material-fields"><input value={m.name} onChange={e=>update(m.id,{name:e.target.value})}/><textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="设计描述（选填）。没有描述时由 AI 自由发挥。"/><label className="reference-upload"><input type="file" accept="image/*" hidden onChange={e=>refInput(m.id,e)}/>{m.referenceUrl?<><img src={m.referenceUrl} alt="参考图"/><span>更换参考图</span></>:<span>+ 上传参考图（选填）</span>}</label>{m.referenceName&&<small className="reference-name">{m.referenceName}</small>}</div><button className="remove-btn" onClick={()=>setMaterials(materials.filter(x=>x.id!==m.id))}>删除</button></div>)}</div></section><label className="confirm-check"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>使用以上选择作为本轮 AI 生成指令。</span></label></div>; }
 
-function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void}){
-  const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({}); const [editing,setEditing]=useState<Material|null>(null); const [adjustText,setAdjustText]=useState(""); const [error,setError]=useState("");
+function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string}){
+  const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
+  const [editing,setEditing]=useState<Material|null>(null);
+  const [adjustText,setAdjustText]=useState("");
+  const [error,setError]=useState("");
+  const [loadingIds,setLoadingIds]=useState<string[]>([]);
   const visible=materials.filter(m=>!deleted.includes(m.id));
+  const busy=(id:string)=>loadingIds.includes(id);
+
   const callAi=async(mode:"generate"|"adjust",target?:Material,instruction?:string)=>{
-    const api=readApiSettings(); if(!api.key||!api.model){ setError("还没有完成 AI API 配置。请先到左侧「设置」填写 Key 和模型并测试连接。"); return null; }
+    const api=readApiSettings();
+    if(!api.key||!api.model){
+      setError("还没有完成 AI API 配置。请先到左侧「设置」填写 Key 和模型并测试连接。");
+      return null;
+    }
     const logoImage=await svgUrlToPngDataUrl(graphic?.url);
-    const list=target?[target]:visible; const refs=await Promise.all(list.map(async m=>({id:m.id,image:await imageUrlToDataUrl(m.referenceUrl)})));
-    const res=await fetch('/api/design',{method:'POST',headers:{'Content-Type':'application/json','x-openai-key':api.key},body:JSON.stringify({mode,model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,logoImage,materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName})),references:refs,context:{brandColor,auxiliaryColors,ratios,selectedExtensions,selectedBoundaries},currentLayout:target?layouts[target.id]:undefined,instruction})});
-    const data=await res.json(); if(!res.ok) throw new Error(data.error||'AI 请求失败'); return data.layouts as DesignLayout[];
+    const list=target?[target]:visible;
+    const refs=await Promise.all(list.map(async m=>({id:m.id,image:await imageUrlToDataUrl(m.referenceUrl)})));
+    const res=await fetch('/api/design',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-openai-key':api.key},
+      body:JSON.stringify({
+        mode,model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
+        logoImage,
+        materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName})),
+        references:refs,
+        context:{brandColor,auxiliaryColors,ratios,selectedExtensions,selectedBoundaries},
+        currentLayout:target?layouts[target.id]:undefined,
+        instruction
+      })
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'AI 请求失败');
+    return data.layouts as DesignLayout[];
   };
-  const generate=async()=>{setError("");setGenerating(true);try{const out=await callAi('generate');if(out){setLayouts(Object.fromEntries(out.map(x=>[x.materialId,x])));setGenerated(true);setDeleted([]);setApproved([]);}}catch(e){setError(e instanceof Error?e.message:'生成失败')}finally{setGenerating(false)}};
-  const redo=async(m:Material)=>{setError("");setGenerating(true);try{const out=await callAi('generate',m);if(out?.[0])setLayouts({...layouts,[m.id]:out[0]});}catch(e){setError(e instanceof Error?e.message:'重做失败')}finally{setGenerating(false)}};
-  const adjust=async()=>{if(!editing||!adjustText.trim())return;setError("");setGenerating(true);try{const out=await callAi('adjust',editing,adjustText);if(out?.[0]){setLayouts({...layouts,[editing.id]:out[0]});setEditing(null);setAdjustText("");}}catch(e){setError(e instanceof Error?e.message:'调整失败')}finally{setGenerating(false)}};
-  const keep=(id:string)=>setApproved(approved.includes(id)?approved.filter(x=>x!==id):[...approved,id]); const remove=(id:string)=>{setDeleted([...deleted,id]);setApproved(approved.filter(x=>x!==id));};
-  return <div className="review-page"><p className="eyebrow">第 4 步 · 生成与调整</p><h1>{generated?"第一轮结果出来了，保留好的，删掉坏的。":"开始用真实 AI 生成版式。"}</h1><p className="muted">“调整”只修改当前方案的指定局部；“重做”保留全局规则，但重新想这一张。</p>{error&&<div className="api-error">{error}</div>}{!generated&&<button className="primary large generate-btn" onClick={generate} disabled={generating}>{generating?"AI 正在生成…":"生成第一轮"}</button>}{generated&&<><div className="result-list">{visible.map((m,i)=>{const l=layouts[m.id];return <article className="result-card" key={m.id}><DesignPreview layout={l} graphic={graphic} fallbackIndex={i}/><div className="result-meta"><b>{m.name}</b><span>{l?.concept||m.description||`AI 自由发挥 · ${selectedExtensions.slice(0,3).join(" / ")}`}</span>{l?.rationale&&<small className="ai-rationale">{l.rationale}</small>}<div><button className={approved.includes(m.id)?"approved":""} onClick={()=>keep(m.id)}>{approved.includes(m.id)?"已保留 ✓":"保留"}</button><button onClick={()=>setEditing(m)}>调整</button><button onClick={()=>redo(m)} disabled={generating}>重做</button><button className="danger-btn" onClick={()=>remove(m.id)}>删除</button></div></div></article>})}</div></>}{editing&&<div className="adjust-overlay" onClick={()=>setEditing(null)}><div className="adjust-panel" onClick={e=>e.stopPropagation()}><span className="rule-tag">局部调整 · {editing.name}</span><h3>告诉 AI 只改哪里。</h3><p>当前构图会作为基础继续修改，不会主动推翻整套方向。</p><div className="quick-adjust">{["Logo 再大一点","留白更多","改成白底","文字更靠边","保持构图，只调整比例"].map(x=><button key={x} onClick={()=>setAdjustText(x)}>{x}</button>)}</div><textarea autoFocus value={adjustText} onChange={e=>setAdjustText(e.target.value)} placeholder="例如：保持整体构图，只把 Logo 放大 20%，并让左下角留白更多。"/><div className="adjust-actions"><button className="secondary" onClick={()=>setEditing(null)}>取消</button><button className="primary" onClick={adjust} disabled={generating||!adjustText.trim()}>{generating?"调整中…":"应用调整"}</button></div></div></div>}</div>;
+
+  const generate=async()=>{
+    setError("");
+    setGenerating(true);
+    try{
+      const out=await callAi('generate');
+      if(out){
+        setLayouts(Object.fromEntries(out.map(x=>[x.materialId,x])));
+        setGenerated(true);
+        setDeleted([]);
+        setApproved([]);
+      }
+    }catch(e){
+      setError(e instanceof Error?e.message:'生成失败');
+    }finally{
+      setGenerating(false);
+    }
+  };
+
+  const redo=async(m:Material)=>{
+    if(busy(m.id)) return;
+    setError("");
+    setLoadingIds(prev=>[...prev,m.id]);
+    try{
+      const out=await callAi('generate',m);
+      if(out?.[0]) setLayouts(prev=>({...prev,[m.id]:out[0]}));
+    }catch(e){
+      setError(e instanceof Error?e.message:'重做失败');
+    }finally{
+      setLoadingIds(prev=>prev.filter(id=>id!==m.id));
+    }
+  };
+
+  const adjust=async()=>{
+    if(!editing||!adjustText.trim()) return;
+    const target=editing;
+    const instruction=adjustText.trim();
+    setError("");
+    setEditing(null);
+    setAdjustText("");
+    setLoadingIds(prev=>prev.includes(target.id)?prev:[...prev,target.id]);
+    try{
+      const out=await callAi('adjust',target,instruction);
+      if(out?.[0]) setLayouts(prev=>({...prev,[target.id]:out[0]}));
+    }catch(e){
+      setError(e instanceof Error?e.message:'调整失败');
+    }finally{
+      setLoadingIds(prev=>prev.filter(id=>id!==target.id));
+    }
+  };
+
+  const keep=(id:string)=>setApproved(approved.includes(id)?approved.filter(x=>x!==id):[...approved,id]);
+  const remove=(id:string)=>{
+    if(busy(id)) return;
+    setDeleted([...deleted,id]);
+    setApproved(approved.filter(x=>x!==id));
+  };
+
+  return <div className="review-page">
+    <p className="eyebrow">第 4 步 · 生成与调整</p>
+    <div className="review-heading-row">
+      <div>
+        <h1>{generated?"第一轮结果出来了，保留好的，删掉坏的。":"开始用真实 AI 生成版式。"}</h1>
+        <p className="muted">“调整”只修改当前方案的指定局部；“重做”保留全局规则，但重新想这一张。</p>
+      </div>
+      <div className="model-badge"><span>当前模型</span><b>{currentModel||"未配置"}</b></div>
+    </div>
+
+    {error&&<div className="api-error">{error}</div>}
+
+    {!generated&&<button className="primary large generate-btn" onClick={generate} disabled={generating}>
+      {generating?"AI 正在生成…":"生成第一轮"}
+    </button>}
+
+    {generated&&<div className="result-list">
+      {visible.map((m,i)=>{
+        const l=layouts[m.id];
+        const isBusy=busy(m.id);
+        return <article className={`result-card ${isBusy?"is-generating":""}`} key={m.id}>
+          <div className="preview-loading-wrap">
+            <DesignPreview layout={l} graphic={graphic} fallbackIndex={i}/>
+            {isBusy&&<div className="preview-sweep" aria-label="AI 正在生成"><span>AI 正在调整…</span></div>}
+          </div>
+          <div className="result-meta">
+            <b>{m.name}</b>
+            <span>{l?.concept||m.description||`AI 自由发挥 · ${selectedExtensions.slice(0,3).join(" / ")}`}</span>
+            {l?.rationale&&<small className="ai-rationale">{l.rationale}</small>}
+            <div>
+              <button className={approved.includes(m.id)?"approved":""} onClick={()=>keep(m.id)} disabled={isBusy}>
+                {approved.includes(m.id)?"已保留 ✓":"保留"}
+              </button>
+              <button onClick={()=>{setEditing(m);setAdjustText("")}} disabled={isBusy}>调整</button>
+              <button onClick={()=>redo(m)} disabled={isBusy}>{isBusy?"生成中…":"重做"}</button>
+              <button className="danger-btn" onClick={()=>remove(m.id)} disabled={isBusy}>删除</button>
+            </div>
+          </div>
+        </article>
+      })}
+    </div>}
+
+    {editing&&<div className="adjust-overlay" onClick={()=>setEditing(null)}>
+      <div className="adjust-panel" onClick={e=>e.stopPropagation()}>
+        <span className="rule-tag">局部调整 · {editing.name}</span>
+        <h3>告诉 AI 只改哪里。</h3>
+        <p>提交后窗口会立即关闭，当前预览会扫光等待新结果；其它方案仍可继续浏览。</p>
+        <div className="quick-adjust">
+          {["Logo 再大一点","留白更多","改成白底","文字更靠边","保持构图，只调整比例"].map(x=>
+            <button key={x} onClick={()=>setAdjustText(x)}>{x}</button>
+          )}
+        </div>
+        <textarea autoFocus value={adjustText} onChange={e=>setAdjustText(e.target.value)}
+          placeholder="例如：保持整体构图，只把 Logo 放大 20%，并让左下角留白更多。"/>
+        <div className="adjust-actions">
+          <button className="secondary" onClick={()=>setEditing(null)}>取消</button>
+          <button className="primary" onClick={adjust} disabled={!adjustText.trim()}>应用调整</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
 }
 function DesignPreview({layout,graphic,fallbackIndex}:{layout?:DesignLayout;graphic:AssetFile|null;fallbackIndex:number}){ const bg=layout?.backgroundColor||(fallbackIndex%3===0?'#111111':fallbackIndex%3===1?'#FFFFFF':'#008FDB'); const pos=layout?.textPosition||'bottom-left'; return <div className="ai-design-preview" style={{background:bg}}>{graphic&&<img className="ai-logo" src={graphic.url} alt="" style={{left:`${layout?.logoX??65}%`,top:`${layout?.logoY??45}%`,width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`}}/>}<span className={`ai-caption ${pos}`} style={{color:layout?.textColor||(bg==='#FFFFFF'?'#111111':'#FFFFFF')}}>{layout?.concept||'AI DESIGN'}</span></div>}
 
