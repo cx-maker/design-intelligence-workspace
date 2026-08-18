@@ -67,6 +67,7 @@ export function WorkspaceShell(){
   const [selectedRouteId,setSelectedRouteId]=useState<string>("");
   const [routeStudies,setRouteStudies]=useState<Record<string,DeconstructionStudy[]>>({});
   const [selectedStudyId,setSelectedStudyId]=useState<string>("");
+  const [studyConfirmed,setStudyConfirmed]=useState(false);
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
   const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
   const [currentModel,setCurrentModel]=useState("");
@@ -79,7 +80,7 @@ export function WorkspaceShell(){
   const resetWorkspace=()=>{
     setStep("brand"); setGraphic(null); setCnTexts([]); setEnTexts([]); setBrandColor("#008FDB"); setAuxiliaryColors([]); setAssetsConfirmed(false);
     setSelectedExtensions(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); setSelectedBoundaries(boundaryOptions); setRatios({black:20,white:45,brand:30});
-    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setRouteStudies({}); setSelectedStudyId(""); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
+    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setRouteStudies({}); setSelectedStudyId(""); setStudyConfirmed(false); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
   };
   const createProject=(name:string)=>{
     const clean=name.trim(); if(!clean) return;
@@ -101,7 +102,7 @@ export function WorkspaceShell(){
   };
   const stepIndex=steps.findIndex(x=>x.id===step);
   const move=(d:1|-1)=>setStep(steps[Math.max(0,Math.min(4,stepIndex+d))].id);
-  const canContinue=useMemo(()=> step==="brand"?!!graphic:step==="references"?assetsConfirmed:step==="generate"?!!selectedRouteId:step==="review"?(generated&&approved.length>0):true,[step,graphic,assetsConfirmed,selectedRouteId,generated,approved.length]);
+  const canContinue=useMemo(()=> step==="brand"?!!graphic:step==="references"?assetsConfirmed:step==="generate"?(!!selectedStudyId&&studyConfirmed):step==="review"?(generated&&approved.length>0):true,[step,graphic,assetsConfirmed,selectedStudyId,studyConfirmed,generated,approved.length]);
 
   if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject} onSelectProject={switchProject}/>;
 
@@ -111,7 +112,7 @@ export function WorkspaceShell(){
     <div className="content">
       {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
       {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} ratios={ratios} setRatios={setRatios} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
-      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} routeStudies={routeStudies} setRouteStudies={setRouteStudies} selectedStudyId={selectedStudyId} setSelectedStudyId={setSelectedStudyId} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
+      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} routeStudies={routeStudies} setRouteStudies={setRouteStudies} selectedStudyId={selectedStudyId} setSelectedStudyId={setSelectedStudyId} studyConfirmed={studyConfirmed} setStudyConfirmed={setStudyConfirmed} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
       {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} layouts={layouts} setLayouts={setLayouts} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null} selectedStudy={Object.values(routeStudies).flat().find(x=>x.id===selectedStudyId)||null}/>}
       {step==="deliver"&&<MockupStage graphic={graphic} brandColor={brandColor} materials={materials} approved={approved} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
     </div>
@@ -175,21 +176,116 @@ function StudyVisual({study,graphic}:{study:DeconstructionStudy;graphic:AssetFil
     {study.elements.map((el,i)=>graphic?<img key={i} src={graphic.url} alt="" style={{left:`${el.x}%`,top:`${el.y}%`,width:`${Math.max(12,el.scale)}%`,transform:`translate(-50%,-50%) rotate(${el.rotation}deg)`,opacity:el.opacity,clipPath:clip(el.clip)}}/>:null)}
   </div>
 }
-function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeStudies,setRouteStudies,selectedStudyId,setSelectedStudyId,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;routeStudies:Record<string,DeconstructionStudy[]>;setRouteStudies:(x:Record<string,DeconstructionStudy[]>)=>void;selectedStudyId:string;setSelectedStudyId:(x:string)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
-  const toggle=(x:string)=>setSelectedExtensions(selectedExtensions.includes(x)?selectedExtensions.filter(v=>v!==x):[...selectedExtensions,x]);
-  const [loading,setLoading]=useState(false); const [error,setError]=useState("");
-  const generateStudies=async()=>{const api=readApiSettings();if(!api.key||!api.model){setError("请先到「设置」完成 AI 连接。");return;}setLoading(true);setError("");try{
-    const logoImage=await svgUrlToPngDataUrl(graphic?.url);
-    const r=await fetch("/api/design",{method:"POST",headers:{"Content-Type":"application/json","x-openai-key":api.key},body:JSON.stringify({mode:"deconstruct",model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,logoImage,routes:routePresets,selectedExtensions})});
-    const d=await r.json();if(!r.ok)throw new Error(d.error||"解构失败");const grouped:Record<string,DeconstructionStudy[]>={};(d.studies||[]).forEach((x:DeconstructionStudy)=>{(grouped[x.routeId]||(grouped[x.routeId]=[])).push(x)});setRouteStudies(grouped);
-  }catch(e){setError(e instanceof Error?e.message:"解构失败")}finally{setLoading(false)}};
-  const pick=(routeId:string,studyId?:string)=>{setSelectedRouteId(routeId);if(studyId)setSelectedStudyId(studyId)};
-  return <div className="deconstruction-page"><p className="eyebrow">第 3 步 · 理解并解构 Logo</p>
-    <div className="deconstruction-title-row"><div><h1>先决定这个 Logo 最值得往哪里发展。</h1><p className="muted">先让 AI 做纯图形实验，不放文案、不做 Mockup。选中的解构小样会作为第四步的视觉规则依据。</p></div><button className="primary deconstruct-ai-btn" onClick={generateStudies} disabled={loading||!graphic}>{loading?"AI 正在解构…":Object.keys(routeStudies).length?"重新生成解构":"AI 生成解构小样"}</button></div>
-    {error&&<div className="api-error">{error}</div>}
-    <div className="deconstruction-intro"><div className="deconstruction-logo white-preview">{graphic?<img src={graphic.url} alt="Logo"/>:<span>Logo</span>}</div><div><span className="rule-tag">当前分析原则</span><p>优先寻找：可重复单元、比例、负形、裁切、局部识别点、空间和尺度关系。</p><p>暂不处理：文字、Mockup、材质、光影、摄影氛围。</p></div></div>
-    <div className="route-grid">{routePresets.map((r,i)=>{const studies=routeStudies[r.id]||[];return <div key={r.id} className={`route-card ${selectedRouteId===r.id?"selected":""}`}><button type="button" className="route-card-main" onClick={()=>pick(r.id)}><div className="route-index">0{i+1}</div><h3>{r.title}</h3><p>{r.summary}</p><small>{r.rationale}</small><div className="route-tags">{r.tags.map(t=><span key={t}>{t}</span>)}</div></button>{studies.length?<div className="route-study-grid">{studies.map(st=><button key={st.id} type="button" className={`route-study ${selectedStudyId===st.id?"selected":""}`} onClick={()=>pick(r.id,st.id)}><StudyVisual study={st} graphic={graphic}/><span>{st.title}</span><small>{st.note}</small></button>)}</div>:<div className="route-demo"><i/><i/><i/><i/></div>}<b className="route-pick-state">{selectedRouteId===r.id?(selectedStudyId&&studies.some(x=>x.id===selectedStudyId)?"已选择解构小样 ✓":"已选择方向 ✓"):"选择这个方向"}</b></div>})}</div>
-    <div className="route-guidance"><span className="rule-tag">进一步约束 · 这些选项会继续作为 AI 指令</span><div className="choice-grid">{extensionOptions.map(x=><button type="button" key={x} className={selectedExtensions.includes(x)?"selected":""} onClick={()=>toggle(x)}>{selectedExtensions.includes(x)?"✓ ":"+ "}{x}</button>)}</div></div>
+function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeStudies,setRouteStudies,selectedStudyId,setSelectedStudyId,studyConfirmed,setStudyConfirmed,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;routeStudies:Record<string,DeconstructionStudy[]>;setRouteStudies:(x:Record<string,DeconstructionStudy[]>)=>void;selectedStudyId:string;setSelectedStudyId:(x:string)=>void;studyConfirmed:boolean;setStudyConfirmed:(x:boolean)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
+  const toggle=(x:string)=>{
+    setSelectedExtensions(selectedExtensions.includes(x)?selectedExtensions.filter(v=>v!==x):[...selectedExtensions,x]);
+    setStudyConfirmed(false);
+  };
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+
+  const chooseRoute=(routeId:string)=>{
+    if(routeId!==selectedRouteId){
+      setSelectedRouteId(routeId);
+      setSelectedStudyId("");
+      setRouteStudies({});
+      setStudyConfirmed(false);
+    }
+  };
+
+  const chooseStudy=(routeId:string,studyId:string)=>{
+    setSelectedRouteId(routeId);
+    setSelectedStudyId(studyId);
+    setStudyConfirmed(false);
+  };
+
+  const generateStudies=async()=>{
+    if(!selectedRouteId){setError("先选择一个解构方向。");return;}
+    const api=readApiSettings();
+    if(!api.key||!api.model){setError("请先到「设置」完成 AI 连接。");return;}
+    setLoading(true);
+    setError("");
+    setSelectedStudyId("");
+    setStudyConfirmed(false);
+    try{
+      const logoImage=await svgUrlToPngDataUrl(graphic?.url);
+      const route=routePresets.find(x=>x.id===selectedRouteId);
+      const r=await fetch("/api/design",{method:"POST",headers:{"Content-Type":"application/json","x-openai-key":api.key},body:JSON.stringify({
+        mode:"deconstruct",model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
+        logoImage,routes:route?[route]:[],selectedExtensions
+      })});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"解构失败");
+      const studies=(d.studies||[]) as DeconstructionStudy[];
+      setRouteStudies({[selectedRouteId]:studies});
+    }catch(e){
+      setError(e instanceof Error?e.message:"解构失败");
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  const studies=selectedRouteId?(routeStudies[selectedRouteId]||[]):[];
+
+  return <div className="deconstruction-page">
+    <p className="eyebrow">第 3 步 · 理解并解构 Logo</p>
+    <h1>先决定这个 Logo 最值得往哪里发展。</h1>
+    <p className="muted">先选发展方向和约束，再让 AI 生成纯图形解构。确认其中一个小样后，才进入平面物料。</p>
+
+    <div className="deconstruction-intro">
+      <div className="deconstruction-logo white-preview">{graphic?<img src={graphic.url} alt="Logo"/>:<span>Logo</span>}</div>
+      <div>
+        <span className="rule-tag">当前分析原则</span>
+        <p>优先寻找：可重复单元、比例、负形、裁切、局部识别点、空间和尺度关系。</p>
+        <p>暂不处理：文字、Mockup、材质、光影、摄影氛围。</p>
+      </div>
+    </div>
+
+    <section className="deconstruction-stage">
+      <div className="stage-label"><i>1</i><div><b>先选一个发展方向</b><span>这里只决定设计思路，不立即调用 AI。</span></div></div>
+      <div className="route-grid compact-routes">
+        {routePresets.map((r,i)=><button type="button" key={r.id} className={`route-card route-choice-card ${selectedRouteId===r.id?"selected":""}`} onClick={()=>chooseRoute(r.id)}>
+          <div className="route-index">0{i+1}</div>
+          <h3>{r.title}</h3>
+          <p>{r.summary}</p>
+          <div className="route-tags">{r.tags.map(t=><span key={t}>{t}</span>)}</div>
+          <b>{selectedRouteId===r.id?"已选择 ✓":"选择这个方向"}</b>
+        </button>)}
+      </div>
+    </section>
+
+    <section className="deconstruction-stage">
+      <div className="stage-label"><i>2</i><div><b>再补充约束</b><span>这些条件会和选中的方向一起发送给 AI。</span></div></div>
+      <div className="route-guidance">
+        <div className="choice-grid">
+          {extensionOptions.map(x=><button type="button" key={x} className={selectedExtensions.includes(x)?"selected":""} onClick={()=>toggle(x)}>{selectedExtensions.includes(x)?"✓ ":"+ "}{x}</button>)}
+        </div>
+      </div>
+    </section>
+
+    <section className="deconstruction-stage generate-stage">
+      <div className="stage-label"><i>3</i><div><b>生成纯图形解构</b><span>只使用原 Logo 的复制、裁切、尺度、旋转、留白和空间关系。</span></div></div>
+      {error&&<div className="api-error">{error}</div>}
+      <button className="primary large deconstruct-bottom-btn" onClick={generateStudies} disabled={loading||!graphic||!selectedRouteId}>
+        {loading?"AI 正在生成解构…":studies.length?"重新生成这条路线":"开始生成图形解构"}
+      </button>
+
+      {loading&&<div className="deconstruct-loading"><span/><p>正在分析 Logo 结构并尝试视觉关系，这一步通常比普通文字请求更慢。</p></div>}
+
+      {studies.length>0&&<div className="study-results">
+        <div className="study-results-head"><b>选择一个小样作为下一步的视觉规则</b><span>选择后还需要确认。</span></div>
+        <div className="study-results-grid">
+          {studies.map(st=><button key={st.id} type="button" className={`route-study large-study ${selectedStudyId===st.id?"selected":""}`} onClick={()=>chooseStudy(selectedRouteId,st.id)}>
+            <StudyVisual study={st} graphic={graphic}/>
+            <span>{st.title}</span>
+            <small>{st.note}</small>
+          </button>)}
+        </div>
+        <button className={`confirm-study-btn ${selectedStudyId?"ready":""} ${studyConfirmed?"confirmed":""}`} disabled={!selectedStudyId} onClick={()=>setStudyConfirmed(true)}>
+          {studyConfirmed?"已确认，可进入下一步 ✓":"确认这个解构方向"}
+        </button>
+      </div>}
+    </section>
   </div>;
 }
 

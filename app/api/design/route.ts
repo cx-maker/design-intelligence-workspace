@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-async function relayFetch(url:string, init:RequestInit){
+async function relayFetch(url:string, init:RequestInit, timeoutMs=30000){
   try {
     return await fetch(url, {
       ...init,
       redirect: "follow",
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e:any) {
     const cause=e?.cause;
@@ -63,10 +63,10 @@ export async function POST(req:NextRequest){
    return NextResponse.json({ok:true,model,provider,apiMode,status:r.status,requestUrl:url,finalUrl:r.url});
   }
   if(mode==="deconstruct"){
-   const schema={type:"object",additionalProperties:false,required:["studies"],properties:{studies:{type:"array",minItems:routes.length*2,maxItems:routes.length*2,items:deconstructionStudyItem}}};
-   const prompt=`你是一名资深品牌图形系统设计师。只针对上传 Logo 做纯图形解构，不写文案、不做 Mockup、不增加无关新形状。每条路线生成 2 个不同实验；elements 只能是原 Logo 的复制、缩放、旋转、裁切、局部露出、重复和空间关系。geometry 强调比例/阵列，negative 强调留白/缺省，symbol 强调识别局部/重复节奏，spatial 强调超大尺度/边缘裁切。路线：${JSON.stringify(routes)}。允许延展：${JSON.stringify(selectedExtensions)}。background 只用 #FFFFFF、#111111、#E8E8E8。只返回合法 JSON。`;
-   if(apiMode==="chat"){const content:any[]=[{type:"text",text:`${prompt}\nJSON Schema：${JSON.stringify(schema)}`}];if(logoImage)content.push({type:"text",text:"原始 Logo："},{type:"image_url",image_url:{url:logoImage}});const url=`${base}/chat/completions`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"只输出合法 JSON，不要 Markdown。"},{role:"user",content}],temperature:0.65})});const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data?.choices?.[0]?.message?.content;if(!text)return NextResponse.json({error:"模型没有返回解构结果"},{status:502});try{return NextResponse.json(extractJson(text))}catch{return NextResponse.json({error:"模型返回的解构结果不是有效 JSON"},{status:502})}}
-   const content:any[]=[{type:"input_text",text:prompt}];if(logoImage)content.push({type:"input_text",text:"下面是原始 Logo："},{type:"input_image",image_url:logoImage,detail:"high"});const url=`${base}/responses`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input:[{role:"user",content}],text:{format:{type:"json_schema",name:"logo_deconstruction",strict:true,schema}}})});const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;if(!text)return NextResponse.json({error:"API 没有返回解构结果"},{status:502});return NextResponse.json(JSON.parse(text));
+   const schema={type:"object",additionalProperties:false,required:["studies"],properties:{studies:{type:"array",minItems:routes.length*4,maxItems:routes.length*4,items:deconstructionStudyItem}}};
+   const prompt=`你是一名资深品牌图形系统设计师。只针对上传 Logo 做纯图形解构，不写文案、不做 Mockup、不增加无关新形状。当前只处理用户选中的一条路线，并生成 4 个明显不同的实验；elements 只能是原 Logo 的复制、缩放、旋转、裁切、局部露出、重复和空间关系。geometry 强调比例/阵列，negative 强调留白/缺省，symbol 强调识别局部/重复节奏，spatial 强调超大尺度/边缘裁切。路线：${JSON.stringify(routes)}。允许延展：${JSON.stringify(selectedExtensions)}。background 只用 #FFFFFF、#111111、#E8E8E8。只返回合法 JSON。`;
+   if(apiMode==="chat"){const content:any[]=[{type:"text",text:`${prompt}\nJSON Schema：${JSON.stringify(schema)}`}];if(logoImage)content.push({type:"text",text:"原始 Logo："},{type:"image_url",image_url:{url:logoImage}});const url=`${base}/chat/completions`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"只输出合法 JSON，不要 Markdown。"},{role:"user",content}],temperature:0.65})},120000);const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data?.choices?.[0]?.message?.content;if(!text)return NextResponse.json({error:"模型没有返回解构结果"},{status:502});try{return NextResponse.json(extractJson(text))}catch{return NextResponse.json({error:"模型返回的解构结果不是有效 JSON"},{status:502})}}
+   const content:any[]=[{type:"input_text",text:prompt}];if(logoImage)content.push({type:"input_text",text:"下面是原始 Logo："},{type:"input_image",image_url:logoImage,detail:"high"});const url=`${base}/responses`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input:[{role:"user",content}],text:{format:{type:"json_schema",name:"logo_deconstruction",strict:true,schema}}})},120000);const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;if(!text)return NextResponse.json({error:"API 没有返回解构结果"},{status:502});return NextResponse.json(JSON.parse(text));
   }
 
   const prompt=mode==="adjust"
