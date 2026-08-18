@@ -17,7 +17,12 @@ async function relayFetch(url:string, init:RequestInit, timeoutMs=30000){
 async function readResponse(r:Response){
   const raw=await r.text();
   if(!raw)return {};
-  try{return JSON.parse(raw)}catch{return {raw:raw.slice(0,800)}}
+  try{return JSON.parse(raw)}catch{
+    const compact=raw.replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    if(r.status===504||/gateway timeout/i.test(compact))return {message:"中转服务网关超时（504）。这不是 API Key 失效；请求在第三方中转层等待模型返回时被截断。已改为更轻的分批生成，请重试。"};
+    if(r.status>=500)return {message:`中转服务暂时异常 (${r.status})${compact?` · ${compact.slice(0,160)}`:""}`};
+    return {raw:compact.slice(0,500)||raw.slice(0,500)};
+  }
 }
 
 const layoutItem = {
@@ -50,7 +55,7 @@ export async function POST(req:NextRequest){
  try{
   const key=req.headers.get("x-openai-key");if(!key)return NextResponse.json({error:"请先配置 API Key"},{status:401});
   const body=await req.json();
-  const {mode,model,provider="openai",baseUrl,apiMode="responses",logoImage,materials=[],references=[],context,currentLayout,instruction,routes=[],selectedExtensions=[]}=body;
+  const {mode,model,provider="openai",baseUrl,apiMode="responses",logoImage,materials=[],references=[],context,currentLayout,instruction,routes=[],selectedExtensions=[],studyCount=4,batchIndex=0}=body;
   if(!model)return NextResponse.json({error:"请填写模型名"},{status:400});
   const base=safeBaseUrl(provider,baseUrl);
 
@@ -63,8 +68,8 @@ export async function POST(req:NextRequest){
    return NextResponse.json({ok:true,model,provider,apiMode,status:r.status,requestUrl:url,finalUrl:r.url});
   }
   if(mode==="deconstruct"){
-   const schema={type:"object",additionalProperties:false,required:["studies"],properties:{studies:{type:"array",minItems:routes.length*4,maxItems:routes.length*4,items:deconstructionStudyItem}}};
-   const prompt=`你是一名资深品牌图形系统设计师。只针对上传 Logo 做纯图形解构，不写文案、不做 Mockup、不增加无关新形状。当前只处理用户选中的一条路线，并生成 4 个明显不同的实验；elements 只能是原 Logo 的复制、缩放、旋转、裁切、局部露出、重复和空间关系。geometry 强调比例/阵列，negative 强调留白/缺省，symbol 强调识别局部/重复节奏，spatial 强调超大尺度/边缘裁切。路线：${JSON.stringify(routes)}。允许延展：${JSON.stringify(selectedExtensions)}。background 只用 #FFFFFF、#111111、#E8E8E8。只返回合法 JSON。`;
+   const count=Math.max(1,Math.min(4,Number(studyCount)||2));const schema={type:"object",additionalProperties:false,required:["studies"],properties:{studies:{type:"array",minItems:count,maxItems:count,items:deconstructionStudyItem}}};
+   const prompt=`你是一名资深品牌图形系统设计师。只针对上传 Logo 做纯图形解构，不写文案、不做 Mockup、不增加无关新形状。当前只处理用户选中的一条路线，并生成 ${count} 个明显不同的实验；这是第 ${Number(batchIndex)+1} 批，请尽量避开常规居中、平均分布等已经容易想到的构图；elements 只能是原 Logo 的复制、缩放、旋转、裁切、局部露出、重复和空间关系。geometry 强调比例/阵列，negative 强调留白/缺省，symbol 强调识别局部/重复节奏，spatial 强调超大尺度/边缘裁切。路线：${JSON.stringify(routes)}。允许延展：${JSON.stringify(selectedExtensions)}。background 只用 #FFFFFF、#111111、#E8E8E8。只返回合法 JSON。`;
    if(apiMode==="chat"){const content:any[]=[{type:"text",text:`${prompt}\nJSON Schema：${JSON.stringify(schema)}`}];if(logoImage)content.push({type:"text",text:"原始 Logo："},{type:"image_url",image_url:{url:logoImage}});const url=`${base}/chat/completions`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"只输出合法 JSON，不要 Markdown。"},{role:"user",content}],temperature:0.65})},120000);const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data?.choices?.[0]?.message?.content;if(!text)return NextResponse.json({error:"模型没有返回解构结果"},{status:502});try{return NextResponse.json(extractJson(text))}catch{return NextResponse.json({error:"模型返回的解构结果不是有效 JSON"},{status:502})}}
    const content:any[]=[{type:"input_text",text:prompt}];if(logoImage)content.push({type:"input_text",text:"下面是原始 Logo："},{type:"input_image",image_url:logoImage,detail:"high"});const url=`${base}/responses`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input:[{role:"user",content}],text:{format:{type:"json_schema",name:"logo_deconstruction",strict:true,schema}}})},120000);const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;if(!text)return NextResponse.json({error:"API 没有返回解构结果"},{status:502});return NextResponse.json(JSON.parse(text));
   }

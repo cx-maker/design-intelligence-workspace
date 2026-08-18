@@ -16,7 +16,7 @@ function readApiSettings():ApiSettings { if(typeof window==="undefined") return 
 function writeApiSettings(v:ApiSettings){ if(typeof window==="undefined") return; sessionStorage.removeItem("diw_openai"); localStorage.removeItem("diw_openai"); (v.remember?localStorage:sessionStorage).setItem("diw_openai",JSON.stringify(v)); }
 function clearApiSettings(){ if(typeof window==="undefined") return; sessionStorage.removeItem("diw_openai"); localStorage.removeItem("diw_openai"); }
 async function imageUrlToDataUrl(url?:string){ if(!url) return undefined; const blob=await fetch(url).then(r=>r.blob()); return await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(blob);}); }
-async function svgUrlToPngDataUrl(url?:string){ if(!url) return undefined; return await new Promise<string>((resolve,reject)=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=1200;c.height=1200;const ctx=c.getContext("2d");if(!ctx)return reject(new Error("canvas"));ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);const scale=Math.min(900/img.width,900/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(1200-w)/2,(1200-h)/2,w,h);resolve(c.toDataURL("image/png"));};img.onerror=reject;img.src=url;}); }
+async function svgUrlToPngDataUrl(url?:string){ if(!url) return undefined; return await new Promise<string>((resolve,reject)=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=800;c.height=800;const ctx=c.getContext("2d");if(!ctx)return reject(new Error("canvas"));ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);const scale=Math.min(620/img.width,620/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(800-w)/2,(800-h)/2,w,h);resolve(c.toDataURL("image/png"));};img.onerror=reject;img.src=url;}); }
 
 const steps: { id: WorkflowStep; label: string }[] = [
   { id: "brand", label: "导入资产" },
@@ -296,14 +296,29 @@ function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeS
     try{
       const logoImage=await svgUrlToPngDataUrl(graphic?.url);
       const route=routePresets.find(x=>x.id===selectedRouteId);
-      const r=await fetch("/api/design",{method:"POST",headers:{"Content-Type":"application/json","x-openai-key":api.key},body:JSON.stringify({
-        mode:"deconstruct",model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
-        logoImage,routes:route?[route]:[],selectedExtensions
-      })});
-      const d=await r.json();
-      if(!r.ok)throw new Error(d.error||"解构失败");
-      const studies=(d.studies||[]) as DeconstructionStudy[];
-      setRouteStudies({[selectedRouteId]:studies});
+      const allStudies:DeconstructionStudy[]=[];
+      let partialError="";
+      // 拆成 2 次较轻请求，每次只生成 2 个小样。
+      // 蓝夜等中转层通常有自己的网关超时，单次“大图 + 4 个结构化方案”容易被 504 截断。
+      for(let batchIndex=0;batchIndex<2;batchIndex++){
+        try{
+          const r=await fetch("/api/design",{method:"POST",headers:{"Content-Type":"application/json","x-openai-key":api.key},body:JSON.stringify({
+            mode:"deconstruct",model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
+            logoImage,routes:route?[route]:[],selectedExtensions,studyCount:2,batchIndex
+          })});
+          const d=await r.json();
+          if(!r.ok)throw new Error(d.error||"解构失败");
+          const batch=(d.studies||[]) as DeconstructionStudy[];
+          allStudies.push(...batch.map((st,i)=>({...st,id:`${selectedRouteId}-${batchIndex}-${i}-${Date.now()}`})));
+          setRouteStudies({[selectedRouteId]:[...allStudies]});
+        }catch(e){
+          partialError=e instanceof Error?e.message:"部分解构失败";
+          if(!allStudies.length)throw e;
+          break;
+        }
+      }
+      if(partialError&&allStudies.length)setError(`已生成 ${allStudies.length} 个小样；后续一批未完成：${partialError}`);
+      if(!allStudies.length)throw new Error("模型没有返回解构结果");
     }catch(e){
       setError(e instanceof Error?e.message:"解构失败");
     }finally{
