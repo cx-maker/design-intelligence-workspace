@@ -6,7 +6,7 @@ type WorkflowStep = "brand" | "references" | "generate" | "review" | "deliver";
 type Section = "projects" | "library" | "settings";
 type ProjectSummary = { id:string; name:string; step:WorkflowStep; updatedAt:number };
 type AssetFile = { id: string; name: string; url: string; raw: string };
-type Material = { id: string; name: string; description: string; referenceName?: string; referenceUrl?: string; enabled?: boolean; width?: number; height?: number; unit?: "mm"|"px"; sizePreset?: string; copy?: string };
+type Material = { id: string; name: string; description: string; referenceName?: string; referenceUrl?: string; enabled?: boolean; width?: number; height?: number; unit?: "mm"|"px"; sizePreset?: string; copy?: string; withText?: boolean };
 type Ratios = Record<string, number>;
 type DesignLayout = { materialId:string; concept:string; backgroundColor:string; logoScale:number; logoX:number; logoY:number; logoRotation:number; textPosition:"top-left"|"top-right"|"bottom-left"|"bottom-right"; textColor:string; headline:string; subline:string; microcopy:string; textAlign:"left"|"center"|"right"; rationale:string };
 
@@ -26,13 +26,15 @@ const steps: { id: WorkflowStep; label: string }[] = [
   { id: "deliver", label: "效果图" },
 ];
 const defaultMaterials: Material[] = [
-  { id:"card", name:"名片", description:"建立品牌最基础的信息层级与留白规则。", enabled:true, width:90, height:54, unit:"mm", sizePreset:"90 × 54 mm", copy:"姓名 / 职位 / 电话 / 邮箱 / 品牌信息" },
-  { id:"bag", name:"手提袋", description:"验证大尺度 Logo、裁切、色块和短文案关系。", enabled:true, width:320, height:420, unit:"mm", sizePreset:"320 × 420 mm", copy:"品牌名 / 一句品牌短语" },
-  { id:"box", name:"包装盒", description:"验证多面信息层级与系统化图形语言。", enabled:true, width:240, height:180, unit:"mm", sizePreset:"240 × 180 mm", copy:"品牌名 / 产品名 / 规格 / 辅助信息" },
+  { id:"card", name:"名片", description:"建立品牌最基础的信息层级与留白规则。", enabled:true, width:90, height:54, unit:"mm", sizePreset:"90 × 54 mm", copy:"姓名 / 职位 / 电话 / 邮箱 / 品牌信息", withText:true },
+  { id:"bag", name:"手提袋", description:"验证大尺度 Logo、裁切、色块和短文案关系。", enabled:true, width:320, height:420, unit:"mm", sizePreset:"320 × 420 mm", copy:"品牌名 / 一句品牌短语", withText:true },
+  { id:"box", name:"包装盒", description:"验证多面信息层级与系统化图形语言。", enabled:true, width:240, height:180, unit:"mm", sizePreset:"240 × 180 mm", copy:"品牌名 / 产品名 / 规格 / 辅助信息", withText:true },
 ];
 const extensionOptions = ["等比放大", "超大裁切", "局部裁切", "完整展示", "少量重复", "图形拆解", "局部元素提取", "负形利用", "黑白反白", "允许旋转", "连续构图"];
 const boundaryOptions = ["不重新设计 Logo", "不改变路径形状", "不增加无关装饰图形", "不使用光效 / 粒子 / 纹理", "不使用阴影", "不使用 3D / 透视", "不使用摄影 Mockup", "保持纯二维正视图"];
 type DeconstructionRoute = { id:string; title:string; summary:string; rationale:string; tags:string[] };
+type DeconstructionStudyElement = { x:number; y:number; scale:number; rotation:number; opacity:number; clip:"none"|"left"|"right"|"top"|"bottom"|"center" };
+type DeconstructionStudy = { id:string; routeId:string; title:string; note:string; background:string; invert:boolean; elements:DeconstructionStudyElement[] };
 const routePresets:DeconstructionRoute[] = [
   { id:"geometry", title:"几何 DNA", summary:"从 Logo 的基础几何、比例、间距和角度关系出发，建立可重复的结构语言。", rationale:"适合希望形成强识别、强系统性的平面品牌。", tags:["模块拆解","比例关系","阵列","裁切","尺度变化"] },
   { id:"negative", title:"负形 / 隐形关系", summary:"利用 Logo 中未被画出的部分、留白和脑补关系，发展更克制的辅助图形。", rationale:"适合标志本身存在隐含结构、空间错觉或正负形关系的项目。", tags:["负形","留白","缺省","局部识别","空间脑补"] },
@@ -63,6 +65,8 @@ export function WorkspaceShell(){
   const [selectedExtensions,setSelectedExtensions]=useState<string[]>(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); const [selectedBoundaries,setSelectedBoundaries]=useState<string[]>(boundaryOptions);
   const [ratios,setRatios]=useState<Ratios>({black:20,white:45,brand:30}); const [materials,setMaterials]=useState<Material[]>(defaultMaterials); const [rulesConfirmed,setRulesConfirmed]=useState(false);
   const [selectedRouteId,setSelectedRouteId]=useState<string>("");
+  const [routeStudies,setRouteStudies]=useState<Record<string,DeconstructionStudy[]>>({});
+  const [selectedStudyId,setSelectedStudyId]=useState<string>("");
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
   const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
   const [currentModel,setCurrentModel]=useState("");
@@ -75,7 +79,7 @@ export function WorkspaceShell(){
   const resetWorkspace=()=>{
     setStep("brand"); setGraphic(null); setCnTexts([]); setEnTexts([]); setBrandColor("#008FDB"); setAuxiliaryColors([]); setAssetsConfirmed(false);
     setSelectedExtensions(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); setSelectedBoundaries(boundaryOptions); setRatios({black:20,white:45,brand:30});
-    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
+    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setRouteStudies({}); setSelectedStudyId(""); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
   };
   const createProject=(name:string)=>{
     const clean=name.trim(); if(!clean) return;
@@ -107,8 +111,8 @@ export function WorkspaceShell(){
     <div className="content">
       {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
       {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} ratios={ratios} setRatios={setRatios} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
-      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
-      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} layouts={layouts} setLayouts={setLayouts} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
+      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} routeStudies={routeStudies} setRouteStudies={setRouteStudies} selectedStudyId={selectedStudyId} setSelectedStudyId={setSelectedStudyId} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
+      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} layouts={layouts} setLayouts={setLayouts} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null} selectedStudy={Object.values(routeStudies).flat().find(x=>x.id===selectedStudyId)||null}/>}
       {step==="deliver"&&<MockupStage graphic={graphic} brandColor={brandColor} materials={materials} approved={approved} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
     </div>
     <footer className="footer">
@@ -165,41 +169,27 @@ function ColorRatio({ratios,setRatios,brandColor,auxiliaryColors}:{ratios:Ratios
   return <div><div className="ratio-bar">{entries.map(item=><i key={item.key} title={`${item.label} ${ratios[item.key]??item.defaultValue}%`} style={{width:`${((ratios[item.key]??item.defaultValue)/total)*100}%`,background:item.color}}/>)}</div><div className="ratio-controls">{entries.map(item=><label key={item.key}><span><i style={{background:item.color}}/>{item.label}<b>{ratios[item.key]??item.defaultValue}%</b></span><input type="range" min="0" max="100" value={ratios[item.key]??item.defaultValue} onChange={e=>update(item.key,Number(e.target.value))}/></label>)}</div><p>黑白作为基础色默认保留；主色与所有辅助色来自上一步确认的品牌色板。这里的比例会作为 AI 的配色权重指令。</p></div>
 }
 
-function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
+function StudyVisual({study,graphic}:{study:DeconstructionStudy;graphic:AssetFile|null}){
+  const clip=(v:DeconstructionStudyElement["clip"])=>v==="left"?"inset(0 50% 0 0)":v==="right"?"inset(0 0 0 50%)":v==="top"?"inset(0 0 50% 0)":v==="bottom"?"inset(50% 0 0 0)":v==="center"?"inset(18% 18% 18% 18%)":"none";
+  return <div className={`study-visual ${study.invert?"invert-study":""}`} style={{background:study.background||"#f2f2f2"}}>
+    {study.elements.map((el,i)=>graphic?<img key={i} src={graphic.url} alt="" style={{left:`${el.x}%`,top:`${el.y}%`,width:`${Math.max(12,el.scale)}%`,transform:`translate(-50%,-50%) rotate(${el.rotation}deg)`,opacity:el.opacity,clipPath:clip(el.clip)}}/>:null)}
+  </div>
+}
+function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeStudies,setRouteStudies,selectedStudyId,setSelectedStudyId,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;routeStudies:Record<string,DeconstructionStudy[]>;setRouteStudies:(x:Record<string,DeconstructionStudy[]>)=>void;selectedStudyId:string;setSelectedStudyId:(x:string)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
   const toggle=(x:string)=>setSelectedExtensions(selectedExtensions.includes(x)?selectedExtensions.filter(v=>v!==x):[...selectedExtensions,x]);
-  return <div className="deconstruction-page">
-    <p className="eyebrow">第 3 步 · 理解并解构 Logo</p>
-    <h1>先决定这个 Logo 最值得往哪里发展。</h1>
-    <p className="muted">这里不做物料。工作台先理解图形结构，再给出几条可延展路线。你只选一条最有潜力的，后面的平面系统都沿这条路线执行。</p>
-    <div className="deconstruction-intro">
-      <div className="deconstruction-logo white-preview">{graphic?<img src={graphic.url} alt="Logo"/>:<span>Logo</span>}</div>
-      <div>
-        <span className="rule-tag">当前分析原则</span>
-        <p>优先寻找：可重复的几何单元、独特比例、负形关系、局部识别点、尺度与空间潜力。</p>
-        <p>暂不处理：Mockup、材质、光影、摄影氛围。</p>
-      </div>
-    </div>
-
-    <div className="route-grid">
-      {routePresets.map((r,i)=><button type="button" key={r.id} className={`route-card ${selectedRouteId===r.id?"selected":""}`} onClick={()=>setSelectedRouteId(r.id)}>
-        <div className="route-index">0{i+1}</div>
-        <div className="route-demo">
-          <i/><i/><i/><i/>
-        </div>
-        <h3>{r.title}</h3>
-        <p>{r.summary}</p>
-        <small>{r.rationale}</small>
-        <div className="route-tags">{r.tags.map(t=><span key={t}>{t}</span>)}</div>
-        <b>{selectedRouteId===r.id?"已选择 ✓":"选择这个方向"}</b>
-      </button>)}
-    </div>
-
-    <div className="route-guidance">
-      <span className="rule-tag">进一步约束 · 这些选项会继续作为 AI 指令</span>
-      <div className="choice-grid">
-        {extensionOptions.map(x=><button type="button" key={x} className={selectedExtensions.includes(x)?"selected":""} onClick={()=>toggle(x)}>{selectedExtensions.includes(x)?"✓ ":"+ "}{x}</button>)}
-      </div>
-    </div>
+  const [loading,setLoading]=useState(false); const [error,setError]=useState("");
+  const generateStudies=async()=>{const api=readApiSettings();if(!api.key||!api.model){setError("请先到「设置」完成 AI 连接。");return;}setLoading(true);setError("");try{
+    const logoImage=await svgUrlToPngDataUrl(graphic?.url);
+    const r=await fetch("/api/design",{method:"POST",headers:{"Content-Type":"application/json","x-openai-key":api.key},body:JSON.stringify({mode:"deconstruct",model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,logoImage,routes:routePresets,selectedExtensions})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||"解构失败");const grouped:Record<string,DeconstructionStudy[]>={};(d.studies||[]).forEach((x:DeconstructionStudy)=>{(grouped[x.routeId]||(grouped[x.routeId]=[])).push(x)});setRouteStudies(grouped);
+  }catch(e){setError(e instanceof Error?e.message:"解构失败")}finally{setLoading(false)}};
+  const pick=(routeId:string,studyId?:string)=>{setSelectedRouteId(routeId);if(studyId)setSelectedStudyId(studyId)};
+  return <div className="deconstruction-page"><p className="eyebrow">第 3 步 · 理解并解构 Logo</p>
+    <div className="deconstruction-title-row"><div><h1>先决定这个 Logo 最值得往哪里发展。</h1><p className="muted">先让 AI 做纯图形实验，不放文案、不做 Mockup。选中的解构小样会作为第四步的视觉规则依据。</p></div><button className="primary deconstruct-ai-btn" onClick={generateStudies} disabled={loading||!graphic}>{loading?"AI 正在解构…":Object.keys(routeStudies).length?"重新生成解构":"AI 生成解构小样"}</button></div>
+    {error&&<div className="api-error">{error}</div>}
+    <div className="deconstruction-intro"><div className="deconstruction-logo white-preview">{graphic?<img src={graphic.url} alt="Logo"/>:<span>Logo</span>}</div><div><span className="rule-tag">当前分析原则</span><p>优先寻找：可重复单元、比例、负形、裁切、局部识别点、空间和尺度关系。</p><p>暂不处理：文字、Mockup、材质、光影、摄影氛围。</p></div></div>
+    <div className="route-grid">{routePresets.map((r,i)=>{const studies=routeStudies[r.id]||[];return <div key={r.id} className={`route-card ${selectedRouteId===r.id?"selected":""}`}><button type="button" className="route-card-main" onClick={()=>pick(r.id)}><div className="route-index">0{i+1}</div><h3>{r.title}</h3><p>{r.summary}</p><small>{r.rationale}</small><div className="route-tags">{r.tags.map(t=><span key={t}>{t}</span>)}</div></button>{studies.length?<div className="route-study-grid">{studies.map(st=><button key={st.id} type="button" className={`route-study ${selectedStudyId===st.id?"selected":""}`} onClick={()=>pick(r.id,st.id)}><StudyVisual study={st} graphic={graphic}/><span>{st.title}</span><small>{st.note}</small></button>)}</div>:<div className="route-demo"><i/><i/><i/><i/></div>}<b className="route-pick-state">{selectedRouteId===r.id?(selectedStudyId&&studies.some(x=>x.id===selectedStudyId)?"已选择解构小样 ✓":"已选择方向 ✓"):"选择这个方向"}</b></div>})}</div>
+    <div className="route-guidance"><span className="rule-tag">进一步约束 · 这些选项会继续作为 AI 指令</span><div className="choice-grid">{extensionOptions.map(x=><button type="button" key={x} className={selectedExtensions.includes(x)?"selected":""} onClick={()=>toggle(x)}>{selectedExtensions.includes(x)?"✓ ":"+ "}{x}</button>)}</div></div>
   </div>;
 }
 
@@ -213,14 +203,14 @@ const materialPresets:Record<string,{label:string;width:number;height:number;uni
   "海报":[{label:"A3 · 297 × 420 mm",width:297,height:420,unit:"mm"},{label:"A2 · 420 × 594 mm",width:420,height:594,unit:"mm"}],
   "社交媒体":[{label:"1080 × 1350 px",width:1080,height:1350,unit:"px"},{label:"1080 × 1080 px",width:1080,height:1080,unit:"px"}],
 };
-function MaterialSetup({materials,onChange}:{materials:Material[];onChange:(x:Material[])=>void}){
+function MaterialSetup({materials,onChange,compact=false}:{materials:Material[];onChange:(x:Material[])=>void;compact?:boolean}){
   const update=(id:string,p:Partial<Material>)=>onChange(materials.map(m=>m.id===id?{...m,...p}:m));
-  const add=()=>onChange([...materials,{id:`custom-${Date.now()}`,name:"海报",description:"验证版式系统与信息层级。",enabled:true,width:297,height:420,unit:"mm",sizePreset:"A3 · 297 × 420 mm",copy:"品牌主张 / 标题 / 副标题 / 辅助信息"}]);
+  const add=()=>onChange([...materials,{id:`custom-${Date.now()}`,name:"海报",description:"验证版式系统与信息层级。",enabled:true,width:297,height:420,unit:"mm",sizePreset:"A3 · 297 × 420 mm",copy:"品牌主张 / 标题 / 副标题 / 辅助信息",withText:true}]);
   const applyPreset=(m:Material,label:string)=>{const p=(materialPresets[m.name]||[]).find(x=>x.label===label);if(p)update(m.id,{...p,sizePreset:p.label});};
-  return <section className="material-setup"><div className="material-setup-head"><div><span className="rule-tag">本轮物料与画布</span><h3>先规定尺寸，再让 AI 在真实边界里做设计。</h3><p>同一轮物料共享一套网格、字体层级、图形语法与色彩逻辑，避免每张各做各的。</p></div><button className="secondary" onClick={add}>+ 添加物料</button></div><div className="material-setup-grid">{materials.map((m,index)=><article className={`material-setup-card ${m.enabled===false?"off":""}`} key={m.id}><div className="material-card-top"><label><input type="checkbox" checked={m.enabled!==false} onChange={e=>update(m.id,{enabled:e.target.checked})}/><b>{String(index+1).padStart(2,"0")} · {m.name}</b></label><button className="remove-btn" onClick={()=>onChange(materials.filter(x=>x.id!==m.id))}>删除</button></div><div className="material-row"><label>物料<input value={m.name} onChange={e=>update(m.id,{name:e.target.value,sizePreset:""})}/></label><label>常用尺寸<select value={m.sizePreset||""} onChange={e=>applyPreset(m,e.target.value)}><option value="">自定义</option>{(materialPresets[m.name]||[]).map(p=><option key={p.label} value={p.label}>{p.label}</option>)}</select></label></div><div className="material-row dimensions"><label>宽<input type="number" min="1" value={m.width||0} onChange={e=>update(m.id,{width:Number(e.target.value),sizePreset:""})}/></label><span>×</span><label>高<input type="number" min="1" value={m.height||0} onChange={e=>update(m.id,{height:Number(e.target.value),sizePreset:""})}/></label><label>单位<select value={m.unit||"mm"} onChange={e=>update(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></label></div><label>必须出现的信息<textarea value={m.copy||""} onChange={e=>update(m.id,{copy:e.target.value})} placeholder="例如：品牌名 / 标题 / 副标题 / 日期 / 联系方式"/></label><label>设计要求<textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="例如：留白大、Logo 可超大裁切，但信息层级必须清晰。"/></label></article>)}</div></section>
+  return <section className={`material-setup ${compact?"compact":""}`}><div className="material-setup-head"><div><span className="rule-tag">{compact?"补充物料":"本轮物料与画布"}</span><h3>{compact?"新增物料不会清空已生成结果。":"先规定尺寸，再让 AI 在真实边界里做设计。"}</h3>{!compact&&<p>同一轮物料共享一套网格、字体层级、图形语法与色彩逻辑，避免每张各做各的。</p>}</div><button className="secondary" onClick={add}>+ 添加物料</button></div><div className="material-setup-grid">{materials.map((m,index)=><article className={`material-setup-card ${m.enabled===false?"off":""}`} key={m.id}><div className="material-card-top"><label><input type="checkbox" checked={m.enabled!==false} onChange={e=>update(m.id,{enabled:e.target.checked})}/><b>{String(index+1).padStart(2,"0")} · {m.name}</b></label><button className="remove-btn" onClick={()=>onChange(materials.filter(x=>x.id!==m.id))}>删除</button></div><div className="material-row"><label>物料<input value={m.name} onChange={e=>update(m.id,{name:e.target.value,sizePreset:""})}/></label><label>常用尺寸<select value={m.sizePreset||""} onChange={e=>applyPreset(m,e.target.value)}><option value="">自定义</option>{(materialPresets[m.name]||[]).map(p=><option key={p.label} value={p.label}>{p.label}</option>)}</select></label></div><div className="material-row dimensions"><label>宽<input type="number" min="1" value={m.width||0} onChange={e=>update(m.id,{width:Number(e.target.value),sizePreset:""})}/></label><span>×</span><label>高<input type="number" min="1" value={m.height||0} onChange={e=>update(m.id,{height:Number(e.target.value),sizePreset:""})}/></label><label>单位<select value={m.unit||"mm"} onChange={e=>update(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></label></div><div className="text-mode-switch"><span>文字信息</span><button type="button" className={m.withText!==false?"selected":""} onClick={()=>update(m.id,{withText:true})}>需要文字</button><button type="button" className={m.withText===false?"selected":""} onClick={()=>update(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<label>必须出现的信息<textarea value={m.copy||""} onChange={e=>update(m.id,{copy:e.target.value})} placeholder="例如：品牌名 / 标题 / 副标题 / 日期 / 联系方式"/></label>}<label>设计要求<textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="例如：留白大、Logo 可超大裁切，但信息层级必须清晰。"/></label></article>)}</div></section>
 }
 
-function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,setMaterials,layouts,setLayouts,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel,selectedRoute}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];setMaterials:(x:Material[])=>void;layouts:Record<string,DesignLayout>;setLayouts:React.Dispatch<React.SetStateAction<Record<string,DesignLayout>>>;selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string;selectedRoute:DeconstructionRoute|null}){
+function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,setMaterials,layouts,setLayouts,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel,selectedRoute,selectedStudy}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];setMaterials:(x:Material[])=>void;layouts:Record<string,DesignLayout>;setLayouts:React.Dispatch<React.SetStateAction<Record<string,DesignLayout>>>;selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string;selectedRoute:DeconstructionRoute|null;selectedStudy:DeconstructionStudy|null}){
   const [editing,setEditing]=useState<Material|null>(null);
   const [copyEditing,setCopyEditing]=useState<Material|null>(null);
   const [copyDraft,setCopyDraft]=useState({headline:"",subline:"",microcopy:""});
@@ -245,9 +235,9 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
       body:JSON.stringify({
         mode,model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
         logoImage,
-        materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName})),
+        materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName,width:m.width,height:m.height,unit:m.unit,copy:m.copy,withText:m.withText!==false})),
         references:refs,
-        context:{brandColor,auxiliaryColors,ratios,selectedExtensions,selectedBoundaries,deconstructionRoute:selectedRoute},
+        context:{brandColor,auxiliaryColors,ratios,selectedExtensions,selectedBoundaries,deconstructionRoute:selectedRoute,deconstructionStudy:selectedStudy},
         currentLayout:target?layouts[target.id]:undefined,
         instruction
       })
@@ -263,10 +253,9 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
     try{
       const out=await callAi('generate');
       if(out){
-        setLayouts(Object.fromEntries(out.map(x=>[x.materialId,x])));
+        setLayouts(prev=>({...prev,...Object.fromEntries(out.map(x=>[x.materialId,x]))}));
         setGenerated(true);
         setDeleted([]);
-        setApproved([]);
       }
     }catch(e){
       setError(e instanceof Error?e.message:'生成失败');
@@ -307,6 +296,10 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
     }
   };
 
+  const updateMaterial=(id:string,p:Partial<Material>)=>setMaterials(materials.map(m=>m.id===id?{...m,...p}:m));
+  const addMaterial=()=>setMaterials([...materials,{id:`custom-${Date.now()}`,name:"海报",description:"补充验证这套视觉系统。",enabled:true,width:297,height:420,unit:"mm",sizePreset:"A3 · 297 × 420 mm",copy:"品牌主张 / 标题 / 副标题",withText:true}]);
+  const generateOne=async(m:Material)=>redo(m);
+
   const keep=(id:string)=>setApproved(approved.includes(id)?approved.filter(x=>x!==id):[...approved,id]);
   const remove=(id:string)=>{
     if(busy(id)) return;
@@ -332,8 +325,10 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
       {generating?"AI 正在试排…":"生成平面试排"}
     </button>}
 
+    {generated&&<div className="post-generate-toolbar"><div><span className="rule-tag">继续完善系统</span><p>可以追加物料或修改尺寸，已有结果不会清空。</p></div><button className="secondary" onClick={addMaterial}>+ 补充物料</button></div>}
+    {generated&&materials.filter(m=>m.enabled!==false&&!deleted.includes(m.id)&&!layouts[m.id]).map(m=><article className="pending-material-card" key={m.id}><div><b>{m.name}</b><span>新物料 · 尚未生成</span></div><div className="pending-size"><input value={m.name} onChange={e=>updateMaterial(m.id,{name:e.target.value})}/><input type="number" min="1" value={m.width||0} onChange={e=>updateMaterial(m.id,{width:Number(e.target.value)})}/><span>×</span><input type="number" min="1" value={m.height||0} onChange={e=>updateMaterial(m.id,{height:Number(e.target.value)})}/><select value={m.unit||"mm"} onChange={e=>updateMaterial(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></div><div className="text-mode-switch"><button className={m.withText!==false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:true})}>需要文字</button><button className={m.withText===false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<input className="pending-copy" value={m.copy||""} onChange={e=>updateMaterial(m.id,{copy:e.target.value})} placeholder="需要出现的信息"/>}<button className="primary" onClick={()=>generateOne(m)} disabled={busy(m.id)}>{busy(m.id)?"生成中…":"生成这个物料"}</button></article>)}
     {generated&&<div className="result-list">
-      {visible.map((m,i)=>{
+      {visible.filter(m=>!!layouts[m.id]).map((m,i)=>{
         const l=layouts[m.id];
         const isBusy=busy(m.id);
         return <article className={`result-card ${isBusy?"is-generating":""}`} key={m.id}>
@@ -343,6 +338,7 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
           </div>
           <div className="result-meta">
             <b>{m.name}</b>
+            <div className="result-size-editor"><label>W<input type="number" min="1" value={m.width||0} onChange={e=>updateMaterial(m.id,{width:Number(e.target.value)})}/></label><span>×</span><label>H<input type="number" min="1" value={m.height||0} onChange={e=>updateMaterial(m.id,{height:Number(e.target.value)})}/></label><select value={m.unit||"mm"} onChange={e=>updateMaterial(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select><div className="text-mode-switch mini"><button className={m.withText!==false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:true})}>文字</button><button className={m.withText===false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:false})}>纯图形</button></div></div>
             <span>{l?.concept||m.description||`AI 自由发挥 · ${selectedExtensions.slice(0,3).join(" / ")}`}</span>
             {l?.rationale&&<small className="ai-rationale">{l.rationale}</small>}
             <div>
@@ -417,11 +413,11 @@ function DesignPreview({layout,graphic,material,fallbackIndex}:{layout?:DesignLa
         width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,
         transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`
       }}/>}
-      <div className={`ai-copy ${pos}`} style={{color,textAlign:layout?.textAlign||"left"}}>
+      {material.withText!==false&&<div className={`ai-copy ${pos}`} style={{color,textAlign:layout?.textAlign||"left"}}>
         <small>{layout?.microcopy||"BRAND SYSTEM / 01"}</small>
         <strong>{layout?.headline||layout?.concept||"Identity through form."}</strong>
         <span>{layout?.subline||"A consistent visual language built from one recognizable mark."}</span>
-      </div>
+      </div>}
       <em className="material-size-tag">{w} × {h} {material.unit||"mm"}</em>
     </div>
   </div>

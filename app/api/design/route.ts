@@ -31,6 +31,8 @@ const layoutItem = {
     textColor:{type:"string"},headline:{type:"string"},subline:{type:"string"},microcopy:{type:"string"},textAlign:{type:"string",enum:["left","center","right"]},rationale:{type:"string"}
   }
 };
+const studyElement = {type:"object",additionalProperties:false,required:["x","y","scale","rotation","opacity","clip"],properties:{x:{type:"number",minimum:-20,maximum:120},y:{type:"number",minimum:-20,maximum:120},scale:{type:"number",minimum:12,maximum:180},rotation:{type:"number",minimum:-90,maximum:90},opacity:{type:"number",minimum:0.15,maximum:1},clip:{type:"string",enum:["none","left","right","top","bottom","center"]}}};
+const deconstructionStudyItem = {type:"object",additionalProperties:false,required:["id","routeId","title","note","background","invert","elements"],properties:{id:{type:"string"},routeId:{type:"string"},title:{type:"string"},note:{type:"string"},background:{type:"string"},invert:{type:"boolean"},elements:{type:"array",minItems:1,maxItems:8,items:studyElement}}};
 
 function safeBaseUrl(provider:string,raw?:string){
   if(provider==="openai")return "https://api.openai.com/v1";
@@ -48,7 +50,7 @@ export async function POST(req:NextRequest){
  try{
   const key=req.headers.get("x-openai-key");if(!key)return NextResponse.json({error:"请先配置 API Key"},{status:401});
   const body=await req.json();
-  const {mode,model,provider="openai",baseUrl,apiMode="responses",logoImage,materials=[],references=[],context,currentLayout,instruction}=body;
+  const {mode,model,provider="openai",baseUrl,apiMode="responses",logoImage,materials=[],references=[],context,currentLayout,instruction,routes=[],selectedExtensions=[]}=body;
   if(!model)return NextResponse.json({error:"请填写模型名"},{status:400});
   const base=safeBaseUrl(provider,baseUrl);
 
@@ -60,15 +62,21 @@ export async function POST(req:NextRequest){
    if(!r.ok)return NextResponse.json({error:d?.error?.message||d?.message||d?.raw||`连接失败 (${r.status})`,status:r.status,statusText:r.statusText,requestUrl:url,finalUrl:r.url},{status:r.status});
    return NextResponse.json({ok:true,model,provider,apiMode,status:r.status,requestUrl:url,finalUrl:r.url});
   }
+  if(mode==="deconstruct"){
+   const schema={type:"object",additionalProperties:false,required:["studies"],properties:{studies:{type:"array",minItems:routes.length*2,maxItems:routes.length*2,items:deconstructionStudyItem}}};
+   const prompt=`你是一名资深品牌图形系统设计师。只针对上传 Logo 做纯图形解构，不写文案、不做 Mockup、不增加无关新形状。每条路线生成 2 个不同实验；elements 只能是原 Logo 的复制、缩放、旋转、裁切、局部露出、重复和空间关系。geometry 强调比例/阵列，negative 强调留白/缺省，symbol 强调识别局部/重复节奏，spatial 强调超大尺度/边缘裁切。路线：${JSON.stringify(routes)}。允许延展：${JSON.stringify(selectedExtensions)}。background 只用 #FFFFFF、#111111、#E8E8E8。只返回合法 JSON。`;
+   if(apiMode==="chat"){const content:any[]=[{type:"text",text:`${prompt}\nJSON Schema：${JSON.stringify(schema)}`}];if(logoImage)content.push({type:"text",text:"原始 Logo："},{type:"image_url",image_url:{url:logoImage}});const url=`${base}/chat/completions`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:"只输出合法 JSON，不要 Markdown。"},{role:"user",content}],temperature:0.65})});const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data?.choices?.[0]?.message?.content;if(!text)return NextResponse.json({error:"模型没有返回解构结果"},{status:502});try{return NextResponse.json(extractJson(text))}catch{return NextResponse.json({error:"模型返回的解构结果不是有效 JSON"},{status:502})}}
+   const content:any[]=[{type:"input_text",text:prompt}];if(logoImage)content.push({type:"input_text",text:"下面是原始 Logo："},{type:"input_image",image_url:logoImage,detail:"high"});const url=`${base}/responses`;const ai=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,store:false,input:[{role:"user",content}],text:{format:{type:"json_schema",name:"logo_deconstruction",strict:true,schema}}})});const data:any=await readResponse(ai);if(!ai.ok)return NextResponse.json({error:data?.error?.message||data?.message||data?.raw||`API 请求失败 (${ai.status})`},{status:ai.status});const text=data.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;if(!text)return NextResponse.json({error:"API 没有返回解构结果"},{status:502});return NextResponse.json(JSON.parse(text));
+  }
 
   const prompt=mode==="adjust"
    ?`你是品牌视觉延展设计助手。只对当前方案做用户明确要求的局部调整，不推翻未被要求修改的结构。当前方案：${JSON.stringify(currentLayout)}。调整要求：${instruction}。品牌约束：${JSON.stringify(context)}。物料：${JSON.stringify(materials)}。只返回合法 JSON。`
    :`你是一名资深品牌视觉设计总监。任务不是分别做几张 Logo 放置图，而是先建立一个统一视觉系统，再把同一系统应用到全部物料。
 必须遵守：
-1. 不重新设计 Logo，不改变原始路径；从 deconstructionRoute 与 selectedExtensions 提取统一视觉语法。
+1. 不重新设计 Logo，不改变原始路径；优先继承 deconstructionStudy 的尺度、裁切、重复、负形和空间关系，再结合 deconstructionRoute 与 selectedExtensions 建立统一视觉语法。
 2. 全部物料共享同一套网格、Logo 尺度策略、裁切规则、留白节奏、文字层级、色彩比例与信息密度。
 3. 严格尊重每个物料的 width / height / unit，把它当真实画布比例。
-4. 不能只有 Logo。每张必须建立至少三级信息：headline、subline、microcopy；基于 material.copy 组织真实感文案，不胡编事实数据。
+4. material.withText=true 时建立 headline、subline、microcopy 信息层级并基于 material.copy 组织文案；material.withText=false 时三个文字字段都返回空字符串，让纯图形系统成为主体。
 5. 允许超大尺度、边缘裁切、非对称网格、重复节奏，但必须服从当前路线；避免所有物料都变成 Logo 居中加左下小字。
 6. 色彩严格服从 ratios 权重，不要逐张随机换色。
 7. 先确定一个 system idea，再输出各物料参数；rationale 说明该物料如何继承统一系统。
