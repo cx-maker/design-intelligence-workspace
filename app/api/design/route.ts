@@ -54,7 +54,7 @@ export async function POST(req:NextRequest){
 
   if(mode==="test"){
    const url=apiMode==="chat"?`${base}/chat/completions`:`${base}/responses`;
-   const payload=apiMode==="chat"?{model,messages:[{role:"user",content:"Reply only with OK"}],max_tokens:8,temperature:0}:{model,store:false,input:"Reply only with OK",max_output_tokens:8};
+   const payload=apiMode==="chat"?{model,messages:[{role:"user",content:"Reply only with OK"}],max_tokens:8,temperature:0}:{model,store:false,input:"Reply only with OK",max_output_tokens:16};
    const r=await relayFetch(url,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify(payload)});
    const d:any=await readResponse(r);
    if(!r.ok)return NextResponse.json({error:d?.error?.message||d?.message||d?.raw||`连接失败 (${r.status})`,status:r.status,statusText:r.statusText,requestUrl:url,finalUrl:r.url},{status:r.status});
