@@ -67,3 +67,32 @@
 .recent-project-card:hover{border-color:#69747d!important;background:#f7f8f8}
 .recent-project-card:active{transform:translateY(0) scale(.995)}
 .dark .recent-project-card:hover{background:#292d31!important;border-color:#5a6670!important}
+
+
+/* v6.3: API save action contrast */
+.api-setting-actions .primary{
+  background:#008FDB;
+  border:1px solid #008FDB;
+  color:#fff;
+  box-shadow:none;
+}
+.api-setting-actions .primary:hover:not(:disabled){
+  filter:brightness(.94);
+}
+.api-setting-actions .primary:disabled{
+  background:#34383d;
+  border-color:#34383d;
+  color:#81878d;
+  opacity:1;
+  cursor:not-allowed;
+}
+.dark .api-setting-actions .primary{
+  background:#008FDB;
+  border-color:#008FDB;
+  color:#fff;
+}
+.dark .api-setting-actions .primary:disabled{
+  background:#34383d;
+  border-color:#34383d;
+  color:#81878d;
+}
