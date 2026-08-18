@@ -391,3 +391,17 @@
 .kept-route-grid button>span,.kept-route-grid button>small{display:block;margin-top:6px}
 .kept-route-grid button>span{font-size:9px;font-weight:700}
 .kept-route-grid button>small{font-size:8px;opacity:.55}
+
+
+/* v7.4 — physical size + palette guidance + editable rationale */
+.material-palette-row,.pending-palette,.result-palette-editor{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.material-palette-row{padding:9px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.material-palette-row label,.pending-palette label,.result-palette-editor label{display:grid;gap:4px;font-size:8px;opacity:.9}
+.material-palette-row select,.pending-palette select,.result-palette-editor select{min-width:105px}
+.material-palette-row small,.result-palette-editor small{font-size:8px;opacity:.45}
+.result-palette-editor{margin:7px 0 8px}
+.editable-concept,.editable-rationale{width:100%;box-sizing:border-box;background:rgba(255,255,255,.025);border:1px solid var(--line);color:inherit;border-radius:6px}
+.editable-concept{font-weight:700;padding:7px 8px;margin-top:4px}
+.editable-rationale{min-height:76px;padding:8px;resize:vertical;line-height:1.5;margin-top:6px}
+.material-desc{display:block;margin-top:6px;opacity:.48;font-size:8px}
+.ai-logo-mask{position:absolute;display:block}

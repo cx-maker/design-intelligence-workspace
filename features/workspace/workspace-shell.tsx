@@ -6,7 +6,8 @@ type WorkflowStep = "brand" | "references" | "generate" | "review" | "deliver";
 type Section = "projects" | "library" | "settings";
 type ProjectSummary = { id:string; name:string; step:WorkflowStep; updatedAt:number };
 type AssetFile = { id: string; name: string; url: string; raw: string };
-type Material = { id: string; name: string; description: string; referenceName?: string; referenceUrl?: string; enabled?: boolean; width?: number; height?: number; unit?: "mm"|"px"; sizePreset?: string; copy?: string; withText?: boolean };
+type PaletteChoice = "auto"|"white"|"black"|"brand"|"aux1"|"aux2";
+type Material = { id: string; name: string; description: string; referenceName?: string; referenceUrl?: string; enabled?: boolean; width?: number; height?: number; unit?: "mm"|"px"; sizePreset?: string; copy?: string; withText?: boolean; backgroundPreference?: PaletteChoice; graphicPreference?: PaletteChoice };
 type Ratios = Record<string, number>;
 type DesignLayout = { materialId:string; concept:string; backgroundColor:string; logoScale:number; logoX:number; logoY:number; logoRotation:number; textPosition:"top-left"|"top-right"|"bottom-left"|"bottom-right"; textColor:string; headline:string; subline:string; microcopy:string; textAlign:"left"|"center"|"right"; rationale:string };
 
@@ -26,9 +27,9 @@ const steps: { id: WorkflowStep; label: string }[] = [
   { id: "deliver", label: "效果图" },
 ];
 const defaultMaterials: Material[] = [
-  { id:"card", name:"名片", description:"建立品牌最基础的信息层级与留白规则。", enabled:true, width:90, height:54, unit:"mm", sizePreset:"90 × 54 mm", copy:"姓名 / 职位 / 电话 / 邮箱 / 品牌信息", withText:true },
-  { id:"bag", name:"手提袋", description:"验证大尺度 Logo、裁切、色块和短文案关系。", enabled:true, width:320, height:420, unit:"mm", sizePreset:"320 × 420 mm", copy:"品牌名 / 一句品牌短语", withText:true },
-  { id:"box", name:"包装盒", description:"验证多面信息层级与系统化图形语言。", enabled:true, width:240, height:180, unit:"mm", sizePreset:"240 × 180 mm", copy:"品牌名 / 产品名 / 规格 / 辅助信息", withText:true },
+  { id:"card", name:"名片", description:"建立品牌最基础的信息层级与留白规则。", enabled:true, width:90, height:54, unit:"mm", sizePreset:"90 × 54 mm", copy:"姓名 / 职位 / 电话 / 邮箱 / 品牌信息", withText:true, backgroundPreference:"auto", graphicPreference:"auto" },
+  { id:"bag", name:"手提袋", description:"验证大尺度 Logo、裁切、色块和短文案关系。", enabled:true, width:320, height:420, unit:"mm", sizePreset:"320 × 420 mm", copy:"品牌名 / 一句品牌短语", withText:true, backgroundPreference:"auto", graphicPreference:"auto" },
+  { id:"box", name:"包装盒", description:"验证多面信息层级与系统化图形语言。", enabled:true, width:240, height:180, unit:"mm", sizePreset:"240 × 180 mm", copy:"品牌名 / 产品名 / 规格 / 辅助信息", withText:true, backgroundPreference:"auto", graphicPreference:"auto" },
 ];
 const extensionOptions = ["等比放大", "超大裁切", "局部裁切", "完整展示", "少量重复", "图形拆解", "局部元素提取", "负形利用", "黑白反白", "允许旋转", "连续构图"];
 const boundaryOptions = ["不重新设计 Logo", "不改变路径形状", "不增加无关装饰图形", "不使用光效 / 粒子 / 纹理", "不使用阴影", "不使用 3D / 透视", "不使用摄影 Mockup", "保持纯二维正视图"];
@@ -418,11 +419,32 @@ const materialPresets:Record<string,{label:string;width:number;height:number;uni
   "海报":[{label:"A3 · 297 × 420 mm",width:297,height:420,unit:"mm"},{label:"A2 · 420 × 594 mm",width:420,height:594,unit:"mm"}],
   "社交媒体":[{label:"1080 × 1350 px",width:1080,height:1350,unit:"px"},{label:"1080 × 1080 px",width:1080,height:1080,unit:"px"}],
 };
+function paletteLabel(v:PaletteChoice){
+  return v==="auto"?"自动":v==="white"?"白色":v==="black"?"黑色":v==="brand"?"品牌主色":v==="aux1"?"辅助色 1":"辅助色 2";
+}
+function resolvePalette(v:PaletteChoice|undefined,brandColor:string,auxiliaryColors:string[]){
+  if(!v||v==="auto")return "";
+  if(v==="white")return "#FFFFFF";
+  if(v==="black")return "#111111";
+  if(v==="brand")return brandColor;
+  if(v==="aux1")return auxiliaryColors[0]||brandColor;
+  return auxiliaryColors[1]||auxiliaryColors[0]||brandColor;
+}
+function PaletteSelect({value,onChange}:{value?:PaletteChoice;onChange:(v:PaletteChoice)=>void}){
+  return <select value={value||"auto"} onChange={e=>onChange(e.target.value as PaletteChoice)}>
+    {(["auto","white","black","brand","aux1","aux2"] as PaletteChoice[]).map(v=><option key={v} value={v}>{paletteLabel(v)}</option>)}
+  </select>;
+}
+
 function MaterialSetup({materials,onChange,compact=false}:{materials:Material[];onChange:(x:Material[])=>void;compact?:boolean}){
   const update=(id:string,p:Partial<Material>)=>onChange(materials.map(m=>m.id===id?{...m,...p}:m));
   const add=()=>onChange([...materials,{id:`custom-${Date.now()}`,name:"海报",description:"验证版式系统与信息层级。",enabled:true,width:297,height:420,unit:"mm",sizePreset:"A3 · 297 × 420 mm",copy:"品牌主张 / 标题 / 副标题 / 辅助信息",withText:true}]);
   const applyPreset=(m:Material,label:string)=>{const p=(materialPresets[m.name]||[]).find(x=>x.label===label);if(p)update(m.id,{...p,sizePreset:p.label});};
-  return <section className={`material-setup ${compact?"compact":""}`}><div className="material-setup-head"><div><span className="rule-tag">{compact?"补充物料":"本轮物料与画布"}</span><h3>{compact?"新增物料不会清空已生成结果。":"先规定尺寸，再让 AI 在真实边界里做设计。"}</h3>{!compact&&<p>同一轮物料共享一套网格、字体层级、图形语法与色彩逻辑，避免每张各做各的。</p>}</div><button className="secondary" onClick={add}>+ 添加物料</button></div><div className="material-setup-grid">{materials.map((m,index)=><article className={`material-setup-card ${m.enabled===false?"off":""}`} key={m.id}><div className="material-card-top"><label><input type="checkbox" checked={m.enabled!==false} onChange={e=>update(m.id,{enabled:e.target.checked})}/><b>{String(index+1).padStart(2,"0")} · {m.name}</b></label><button className="remove-btn" onClick={()=>onChange(materials.filter(x=>x.id!==m.id))}>删除</button></div><div className="material-row"><label>物料<input value={m.name} onChange={e=>update(m.id,{name:e.target.value,sizePreset:""})}/></label><label>常用尺寸<select value={m.sizePreset||""} onChange={e=>applyPreset(m,e.target.value)}><option value="">自定义</option>{(materialPresets[m.name]||[]).map(p=><option key={p.label} value={p.label}>{p.label}</option>)}</select></label></div><div className="material-row dimensions"><label>宽<input type="number" min="1" value={m.width||0} onChange={e=>update(m.id,{width:Number(e.target.value),sizePreset:""})}/></label><span>×</span><label>高<input type="number" min="1" value={m.height||0} onChange={e=>update(m.id,{height:Number(e.target.value),sizePreset:""})}/></label><label>单位<select value={m.unit||"mm"} onChange={e=>update(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></label></div><div className="text-mode-switch"><span>文字信息</span><button type="button" className={m.withText!==false?"selected":""} onClick={()=>update(m.id,{withText:true})}>需要文字</button><button type="button" className={m.withText===false?"selected":""} onClick={()=>update(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<label>必须出现的信息<textarea value={m.copy||""} onChange={e=>update(m.id,{copy:e.target.value})} placeholder="例如：品牌名 / 标题 / 副标题 / 日期 / 联系方式"/></label>}<label>设计要求<textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="例如：留白大、Logo 可超大裁切，但信息层级必须清晰。"/></label></article>)}</div></section>
+  return <section className={`material-setup ${compact?"compact":""}`}><div className="material-setup-head"><div><span className="rule-tag">{compact?"补充物料":"本轮物料与画布"}</span><h3>{compact?"新增物料不会清空已生成结果。":"先规定尺寸，再让 AI 在真实边界里做设计。"}</h3>{!compact&&<p>同一轮物料共享一套网格、字体层级、图形语法与色彩逻辑，避免每张各做各的。</p>}</div><button className="secondary" onClick={add}>+ 添加物料</button></div><div className="material-setup-grid">{materials.map((m,index)=><article className={`material-setup-card ${m.enabled===false?"off":""}`} key={m.id}><div className="material-card-top"><label><input type="checkbox" checked={m.enabled!==false} onChange={e=>update(m.id,{enabled:e.target.checked})}/><b>{String(index+1).padStart(2,"0")} · {m.name}</b></label><button className="remove-btn" onClick={()=>onChange(materials.filter(x=>x.id!==m.id))}>删除</button></div><div className="material-row"><label>物料<input value={m.name} onChange={e=>update(m.id,{name:e.target.value,sizePreset:""})}/></label><label>常用尺寸<select value={m.sizePreset||""} onChange={e=>applyPreset(m,e.target.value)}><option value="">自定义</option>{(materialPresets[m.name]||[]).map(p=><option key={p.label} value={p.label}>{p.label}</option>)}</select></label></div><div className="material-row dimensions"><label>宽<input type="number" min="1" value={m.width||0} onChange={e=>update(m.id,{width:Number(e.target.value),sizePreset:""})}/></label><span>×</span><label>高<input type="number" min="1" value={m.height||0} onChange={e=>update(m.id,{height:Number(e.target.value),sizePreset:""})}/></label><label>单位<select value={m.unit||"mm"} onChange={e=>update(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></label></div><div className="material-palette-row">
+  <label>底色<PaletteSelect value={m.backgroundPreference} onChange={v=>update(m.id,{backgroundPreference:v})}/></label>
+  <label>图形 / Logo 色<PaletteSelect value={m.graphicPreference} onChange={v=>update(m.id,{graphicPreference:v})}/></label>
+  <small>“自动”交给 AI；指定后会作为当前物料的优先配色约束。</small>
+</div><div className="text-mode-switch"><span>文字信息</span><button type="button" className={m.withText!==false?"selected":""} onClick={()=>update(m.id,{withText:true})}>需要文字</button><button type="button" className={m.withText===false?"selected":""} onClick={()=>update(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<label>必须出现的信息<textarea value={m.copy||""} onChange={e=>update(m.id,{copy:e.target.value})} placeholder="例如：品牌名 / 标题 / 副标题 / 日期 / 联系方式"/></label>}<label>设计要求<textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="例如：留白大、Logo 可超大裁切，但信息层级必须清晰。"/></label></article>)}</div></section>
 }
 
 function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,setMaterials,layouts,setLayouts,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel,selectedRoute,selectedStudy,keptStudies=[]}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];setMaterials:(x:Material[])=>void;layouts:Record<string,DesignLayout>;setLayouts:React.Dispatch<React.SetStateAction<Record<string,DesignLayout>>>;selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string;selectedRoute:DeconstructionRoute|null;selectedStudy:DeconstructionStudy|null;keptStudies?:DeconstructionStudy[]}){
@@ -457,7 +479,7 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
       body:JSON.stringify({
         mode,model:api.model,provider:api.provider,baseUrl:api.baseUrl,apiMode:api.apiMode,
         logoImage,
-        materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName,width:m.width,height:m.height,unit:m.unit,copy:m.copy,withText:m.withText!==false})),
+        materials:list.map(m=>({id:m.id,name:m.name,description:m.description,referenceName:m.referenceName,width:m.width,height:m.height,unit:m.unit,copy:m.copy,withText:m.withText!==false,backgroundPreference:m.backgroundPreference||"auto",graphicPreference:m.graphicPreference||"auto"})),
         references:refs,
         context:{brandColor,auxiliaryColors,ratios,selectedExtensions,selectedBoundaries,deconstructionRoute:routePresets.find(r=>r.id===activeStudy?.routeId)||selectedRoute,deconstructionStudy:activeStudy},
         currentLayout:target?layouts[target.id]:undefined,
@@ -558,21 +580,31 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
     </button>}
 
     {generated&&<div className="post-generate-toolbar"><div><span className="rule-tag">继续完善系统</span><p>可以追加物料或修改尺寸，已有结果不会清空。</p></div><button className="secondary" onClick={addMaterial}>+ 补充物料</button></div>}
-    {generated&&materials.filter(m=>m.enabled!==false&&!deleted.includes(m.id)&&!layouts[m.id]).map(m=><article className="pending-material-card" key={m.id}><div><b>{m.name}</b><span>新物料 · 尚未生成</span></div><div className="pending-size"><input value={m.name} onChange={e=>updateMaterial(m.id,{name:e.target.value})}/><input type="number" min="1" value={m.width||0} onChange={e=>updateMaterial(m.id,{width:Number(e.target.value)})}/><span>×</span><input type="number" min="1" value={m.height||0} onChange={e=>updateMaterial(m.id,{height:Number(e.target.value)})}/><select value={m.unit||"mm"} onChange={e=>updateMaterial(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></div><div className="text-mode-switch"><button className={m.withText!==false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:true})}>需要文字</button><button className={m.withText===false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<input className="pending-copy" value={m.copy||""} onChange={e=>updateMaterial(m.id,{copy:e.target.value})} placeholder="需要出现的信息"/>}<button className="primary" onClick={()=>generateOne(m)} disabled={busy(m.id)}>{busy(m.id)?"生成中…":"生成这个物料"}</button></article>)}
+    {generated&&materials.filter(m=>m.enabled!==false&&!deleted.includes(m.id)&&!layouts[m.id]).map(m=><article className="pending-material-card" key={m.id}><div><b>{m.name}</b><span>新物料 · 尚未生成</span></div><div className="pending-size"><input value={m.name} onChange={e=>updateMaterial(m.id,{name:e.target.value})}/><input type="number" min="1" value={m.width||0} onChange={e=>updateMaterial(m.id,{width:Number(e.target.value)})}/><span>×</span><input type="number" min="1" value={m.height||0} onChange={e=>updateMaterial(m.id,{height:Number(e.target.value)})}/><select value={m.unit||"mm"} onChange={e=>updateMaterial(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></div><div className="pending-palette">
+  <label>底色<PaletteSelect value={m.backgroundPreference} onChange={v=>updateMaterial(m.id,{backgroundPreference:v})}/></label>
+  <label>图形色<PaletteSelect value={m.graphicPreference} onChange={v=>updateMaterial(m.id,{graphicPreference:v})}/></label>
+</div><div className="text-mode-switch"><button className={m.withText!==false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:true})}>需要文字</button><button className={m.withText===false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:false})}>纯图形</button></div>{m.withText!==false&&<input className="pending-copy" value={m.copy||""} onChange={e=>updateMaterial(m.id,{copy:e.target.value})} placeholder="需要出现的信息"/>}<button className="primary" onClick={()=>generateOne(m)} disabled={busy(m.id)}>{busy(m.id)?"生成中…":"生成这个物料"}</button></article>)}
     {generated&&<div className="result-list">
       {visible.filter(m=>!!layouts[m.id]).map((m,i)=>{
         const l=layouts[m.id];
         const isBusy=busy(m.id);
         return <article className={`result-card ${isBusy?"is-generating":""}`} key={m.id}>
           <div className="preview-loading-wrap">
-            <DesignPreview layout={l} graphic={graphic} material={m} fallbackIndex={i}/>
+            <DesignPreview layout={l} graphic={graphic} material={m} fallbackIndex={i} brandColor={brandColor} auxiliaryColors={auxiliaryColors}/>
             {isBusy&&<div className="preview-sweep" aria-label="AI 正在生成"><span>AI 正在调整…</span></div>}
           </div>
           <div className="result-meta">
             <b>{m.name}</b>
             <div className="result-size-editor"><label>W<input type="number" min="1" value={m.width||0} onChange={e=>updateMaterial(m.id,{width:Number(e.target.value)})}/></label><span>×</span><label>H<input type="number" min="1" value={m.height||0} onChange={e=>updateMaterial(m.id,{height:Number(e.target.value)})}/></label><select value={m.unit||"mm"} onChange={e=>updateMaterial(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select><div className="text-mode-switch mini"><button className={m.withText!==false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:true})}>文字</button><button className={m.withText===false?"selected":""} onClick={()=>updateMaterial(m.id,{withText:false})}>纯图形</button></div></div>
-            <span>{l?.concept||m.description||`AI 自由发挥 · ${selectedExtensions.slice(0,3).join(" / ")}`}</span>
-            {l?.rationale&&<small className="ai-rationale">{l.rationale}</small>}
+            <div className="result-palette-editor">
+              <label>底色<PaletteSelect value={m.backgroundPreference} onChange={v=>updateMaterial(m.id,{backgroundPreference:v})}/></label>
+              <label>图形色<PaletteSelect value={m.graphicPreference} onChange={v=>updateMaterial(m.id,{graphicPreference:v})}/></label>
+              <small>修改后预览即时更新；点“重做”会把新配色约束交给 AI。</small>
+            </div>
+            <input className="editable-concept" value={l?.concept||""} onChange={e=>setLayouts(prev=>({...prev,[m.id]:{...prev[m.id],concept:e.target.value}}))} placeholder="方案概念 / 描述标题"/>
+            <textarea className="editable-rationale" value={l?.rationale||""} onChange={e=>setLayouts(prev=>({...prev,[m.id]:{...prev[m.id],rationale:e.target.value}}))} placeholder="设计说明，可直接编辑后再作为后续调整依据"/>
+            <span className="material-desc">{m.description||`AI 自由发挥 · ${selectedExtensions.slice(0,3).join(" / ")}`}</span>
+            
             <div>
               <button className={approved.includes(m.id)?"approved":""} onClick={()=>keep(m.id)} disabled={isBusy}>
                 {approved.includes(m.id)?"已保留 ✓":"保留"}
@@ -626,25 +658,48 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
     </div>}
   </div>;
 }
-function DesignPreview({layout,graphic,material,fallbackIndex}:{layout?:DesignLayout;graphic:AssetFile|null;material:Material;fallbackIndex:number}){
-  const bg=layout?.backgroundColor||(fallbackIndex%3===0?'#111111':fallbackIndex%3===1?'#FFFFFF':'#008FDB');
+function DesignPreview({layout,graphic,material,fallbackIndex,brandColor,auxiliaryColors}:{layout?:DesignLayout;graphic:AssetFile|null;material:Material;fallbackIndex:number;brandColor:string;auxiliaryColors:string[]}){
+  const preferredBg=resolvePalette(material.backgroundPreference,brandColor,auxiliaryColors);
+  const bg=preferredBg||layout?.backgroundColor||(fallbackIndex%3===0?'#111111':fallbackIndex%3===1?'#FFFFFF':brandColor);
+  const preferredGraphic=resolvePalette(material.graphicPreference,brandColor,auxiliaryColors);
   const pos=layout?.textPosition||'bottom-left';
   const color=layout?.textColor||(bg==='#FFFFFF'?'#111111':'#FFFFFF');
   const w=Math.max(1,material.width||90);
   const h=Math.max(1,material.height||54);
   const ratio=w/h;
+
+  // 画板比例 + 物理尺寸都参与预览：不再让 90mm 名片和 420mm 手提袋视觉上同样大。
+  const mmFactor=material.unit==="px"?0.264583:1;
+  const physicalMax=Math.max(w,h)*mmFactor;
+  const normalized=Math.max(0,Math.min(1,physicalMax/420));
+  const displayMax=34+48*normalized;
   const planeStyle:CSSProperties = ratio>=1
-    ? {width:"76%",aspectRatio:`${w}/${h}`,maxHeight:"82%"}
-    : {height:"82%",aspectRatio:`${w}/${h}`,maxWidth:"76%"};
+    ? {width:`${displayMax}%`,aspectRatio:`${w}/${h}`,maxHeight:"86%"}
+    : {height:`${displayMax}%`,aspectRatio:`${w}/${h}`,maxWidth:"82%"};
 
   return <div className="material-artboard">
     <div className="material-plane ai-design-preview" style={{...planeStyle,background:bg}}>
-      {graphic&&<img className="ai-logo" src={graphic.url} alt="" style={{
-        left:`${layout?.logoX??65}%`,
-        top:`${layout?.logoY??45}%`,
-        width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,
-        transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`
-      }}/>}
+      {graphic&&(preferredGraphic?
+        <span className="ai-logo ai-logo-mask" aria-label="Logo" style={{
+          left:`${layout?.logoX??65}%`,
+          top:`${layout?.logoY??45}%`,
+          width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,
+          aspectRatio:"1",
+          background:preferredGraphic,
+          WebkitMaskImage:`url("${graphic.url}")`,
+          maskImage:`url("${graphic.url}")`,
+          WebkitMaskRepeat:"no-repeat",maskRepeat:"no-repeat",
+          WebkitMaskPosition:"center",maskPosition:"center",
+          WebkitMaskSize:"contain",maskSize:"contain",
+          transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`
+        } as CSSProperties}/>:
+        <img className="ai-logo" src={graphic.url} alt="" style={{
+          left:`${layout?.logoX??65}%`,
+          top:`${layout?.logoY??45}%`,
+          width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,
+          transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`
+        }}/>)
+      }
       {material.withText!==false&&<div className={`ai-copy ${pos}`} style={{color,textAlign:layout?.textAlign||"left"}}>
         <small>{layout?.microcopy||"BRAND SYSTEM / 01"}</small>
         <strong>{layout?.headline||layout?.concept||"Identity through form."}</strong>

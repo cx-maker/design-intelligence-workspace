@@ -80,10 +80,10 @@ export async function POST(req:NextRequest){
 必须遵守：
 1. 不重新设计 Logo，不改变原始路径；优先继承 deconstructionStudy 的尺度、裁切、重复、负形和空间关系，再结合 deconstructionRoute 与 selectedExtensions 建立统一视觉语法。
 2. 全部物料共享同一套网格、Logo 尺度策略、裁切规则、留白节奏、文字层级、色彩比例与信息密度。
-3. 严格尊重每个物料的 width / height / unit，把它当真实画布比例。
+3. 严格尊重每个物料的 width / height / unit，把它当真实画布比例与真实尺寸边界；不仅比例要正确，还要让信息密度、Logo 相对尺度和留白量符合该物料实际大小。
 4. material.withText=true 时建立 headline、subline、microcopy 信息层级并基于 material.copy 组织文案；material.withText=false 时三个文字字段都返回空字符串，让纯图形系统成为主体。
 5. 允许超大尺度、边缘裁切、非对称网格、重复节奏，但必须服从当前路线；避免所有物料都变成 Logo 居中加左下小字。
-6. 色彩严格服从 ratios 权重，不要逐张随机换色。
+6. 色彩严格服从 ratios 权重，不要逐张随机换色。每个 material 若 backgroundPreference / graphicPreference 不是 auto，则该物料必须优先服从该配色偏好；brand 对应品牌主色，aux1 / aux2 对应辅助色，white / black 对应黑白。auto 才允许依据 ratios 自主判断。
 7. 先确定一个 system idea，再输出各物料参数；rationale 说明该物料如何继承统一系统。
 8. 参考图只学习调性、留白、密度、信息层级与构图方法，不复制其中品牌元素。
 品牌约束：${JSON.stringify(context)}。
