@@ -375,3 +375,19 @@
 .sidebar.is-busy nav button:disabled,.sidebar.is-busy .mark-btn:disabled{opacity:.32;cursor:not-allowed}
 .sidebar-busy-note{position:absolute;left:14px;bottom:58px;font-size:9px;color:#27c768;opacity:.85}
 .stepper button:disabled,.crumb:disabled,.footer-nav-button:disabled{cursor:not-allowed}
+
+
+/* v7.3 — multi-route keep flow */
+.route-study.kept{box-shadow:inset 0 0 0 1px #27c768}
+.keep-study-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.kept-route-selector{margin:14px 0 18px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.kept-route-selector>div:first-child{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.kept-route-selector>div:first-child b{font-size:10px}
+.kept-route-selector>div:first-child span{font-size:9px;opacity:.55}
+.kept-route-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kept-route-grid button{border:1px solid var(--line);background:transparent;border-radius:8px;padding:6px;text-align:left;color:inherit}
+.kept-route-grid button.selected{border-color:#27c768;box-shadow:inset 0 0 0 1px #27c768}
+.kept-route-grid .study-visual{height:88px;border-radius:5px;overflow:hidden}
+.kept-route-grid button>span,.kept-route-grid button>small{display:block;margin-top:6px}
+.kept-route-grid button>span{font-size:9px;font-weight:700}
+.kept-route-grid button>small{font-size:8px;opacity:.55}
