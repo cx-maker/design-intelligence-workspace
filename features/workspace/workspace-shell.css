@@ -405,3 +405,30 @@
 .editable-rationale{min-height:76px;padding:8px;resize:vertical;line-height:1.5;margin-top:6px}
 .material-desc{display:block;margin-top:6px;opacity:.48;font-size:8px}
 .ai-logo-mask{position:absolute;display:block}
+
+
+/* v7.5.1 — guided inspector layout */
+.result-meta{display:flex;flex-direction:column;padding:12px 14px!important}
+.result-meta>b{font-size:13px;margin-bottom:7px}
+.inspector-section{border-top:1px solid var(--line);padding:10px 0}
+.inspector-section:first-of-type{margin-top:2px}
+.inspector-section-title{margin-bottom:7px;font-size:9px;font-weight:700;letter-spacing:.02em;opacity:.48}
+.inspector-grid{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) 66px;align-items:end;gap:6px}
+.inspector-grid label{display:grid;grid-template-columns:12px minmax(0,1fr);align-items:center;gap:4px;font-size:8px;opacity:.68}
+.inspector-grid input{min-width:0;width:100%}
+.result-palette-editor{display:grid!important;grid-template-columns:1fr 1fr;gap:7px!important;margin:0!important}
+.result-palette-editor label{display:grid!important;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:5px!important}
+.result-palette-editor select{width:100%;min-width:0!important}
+.inspector-text-switch{justify-content:flex-start}
+.inspector-text-switch button{flex:1}
+.inspector-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.inspector-actions button{margin:0!important}
+.inspector-actions .primary-adjust{grid-column:1/-1;min-height:34px;border-color:rgba(255,255,255,.22);font-weight:700}
+.inspector-actions .danger-btn{opacity:.58}
+.adjust-current-logic{display:grid;gap:10px;margin:14px 0}
+.adjust-current-logic label{display:grid;gap:5px;font-size:9px;font-weight:700}
+.adjust-current-logic input,.adjust-current-logic textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.035);color:inherit;padding:9px}
+.adjust-current-logic textarea{min-height:86px;resize:vertical;line-height:1.55}
+.adjust-divider{display:flex;align-items:center;gap:8px;margin:15px 0 10px;font-size:9px;opacity:.55}
+.adjust-divider::after{content:"";height:1px;flex:1;background:var(--line)}
+.editable-concept,.editable-rationale,.material-desc{display:none!important}
