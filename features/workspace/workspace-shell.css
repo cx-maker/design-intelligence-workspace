@@ -369,3 +369,9 @@
 .confirm-study-btn{display:block;margin:14px 0 0 auto;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--muted);padding:9px 14px;font-weight:700}
 .confirm-study-btn.ready{background:#fff;color:#111;border-color:#fff}.confirm-study-btn.confirmed{background:#27c768;color:#fff;border-color:#27c768}
 @media(max-width:1000px){.study-results-grid{grid-template-columns:1fr 1fr}}
+
+
+/* v7.2 — persistent workspace + uninterrupted workflow */
+.sidebar.is-busy nav button:disabled,.sidebar.is-busy .mark-btn:disabled{opacity:.32;cursor:not-allowed}
+.sidebar-busy-note{position:absolute;left:14px;bottom:58px;font-size:9px;color:#27c768;opacity:.85}
+.stepper button:disabled,.crumb:disabled,.footer-nav-button:disabled{cursor:not-allowed}

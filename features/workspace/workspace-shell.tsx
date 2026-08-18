@@ -10,8 +10,8 @@ type Material = { id: string; name: string; description: string; referenceName?:
 type Ratios = Record<string, number>;
 type DesignLayout = { materialId:string; concept:string; backgroundColor:string; logoScale:number; logoX:number; logoY:number; logoRotation:number; textPosition:"top-left"|"top-right"|"bottom-left"|"bottom-right"; textColor:string; headline:string; subline:string; microcopy:string; textAlign:"left"|"center"|"right"; rationale:string };
 
-type ApiSettings = { provider:"openai"|"compatible"; key:string; model:string; baseUrl:string; apiMode:"responses"|"chat"; remember:boolean };
-const defaultApiSettings:ApiSettings={provider:"openai",key:"",model:"",baseUrl:"",apiMode:"responses",remember:false};
+type ApiSettings = { provider:"openai"|"compatible"; key:string; model:string; baseUrl:string; apiMode:"responses"|"chat"; remember:boolean; verified?:boolean };
+const defaultApiSettings:ApiSettings={provider:"openai",key:"",model:"",baseUrl:"",apiMode:"responses",remember:false,verified:false};
 function readApiSettings():ApiSettings { if(typeof window==="undefined") return defaultApiSettings; const raw=sessionStorage.getItem("diw_openai")||localStorage.getItem("diw_openai"); if(!raw) return defaultApiSettings; try{return {...defaultApiSettings,...JSON.parse(raw)}}catch{return defaultApiSettings} }
 function writeApiSettings(v:ApiSettings){ if(typeof window==="undefined") return; sessionStorage.removeItem("diw_openai"); localStorage.removeItem("diw_openai"); (v.remember?localStorage:sessionStorage).setItem("diw_openai",JSON.stringify(v)); }
 function clearApiSettings(){ if(typeof window==="undefined") return; sessionStorage.removeItem("diw_openai"); localStorage.removeItem("diw_openai"); }
@@ -50,7 +50,13 @@ function extractSvgColors(raw:string){
   const counts=new Map<string,number>(); all.forEach(x=>counts.set(x,(counts.get(x)||0)+1));
   return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 }
-function makeAsset(file:File, raw:string):AssetFile { return {id:`${Date.now()}-${Math.random()}`,name:file.name,url:URL.createObjectURL(file),raw}; }
+function svgDataUrl(raw:string){ return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(raw)}`; }
+function makeAsset(file:File, raw:string):AssetFile { return {id:`${Date.now()}-${Math.random()}`,name:file.name,url:svgDataUrl(raw),raw}; }
+function assetToCache(a:AssetFile|null){ return a?{id:a.id,name:a.name,raw:a.raw}:null; }
+function assetFromCache(a:any):AssetFile|null { return a?.raw?{id:a.id||`restored-${Date.now()}`,name:a.name||"asset.svg",raw:a.raw,url:svgDataUrl(a.raw)}:null; }
+function assetsFromCache(list:any){ return Array.isArray(list)?list.map(assetFromCache).filter(Boolean) as AssetFile[]:[]; }
+const WORKSPACE_CACHE_KEY="diw_workspace_v2";
+const WORKSPACE_CACHE_VERSION=2;
 
 export function WorkspaceShell(){
   const [section,setSection]=useState<Section>("projects");
@@ -71,16 +77,95 @@ export function WorkspaceShell(){
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
   const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
   const [currentModel,setCurrentModel]=useState("");
+  const [deconstructing,setDeconstructing]=useState(false);
+  const [workspaceHydrated,setWorkspaceHydrated]=useState(false);
+  const skipNextGraphicColorRef=useRef(false);
 
   const activeProject=projects.find(p=>p.id===activeProjectId)||projects[0];
+
+  // 恢复上一次本机工作痕迹。版本号用于未来“大改版”时主动失效旧缓存。
+  useEffect(()=>{
+    try{
+      const raw=localStorage.getItem(WORKSPACE_CACHE_KEY);
+      if(raw){
+        const d=JSON.parse(raw);
+        if(d?.version===WORKSPACE_CACHE_VERSION){
+          if(d.section)setSection(d.section);
+          if(typeof d.started==="boolean")setStarted(d.started);
+          if(d.step)setStep(d.step);
+          if(typeof d.dark==="boolean")setDark(d.dark);
+          if(Array.isArray(d.projects)&&d.projects.length)setProjects(d.projects);
+          if(d.activeProjectId)setActiveProjectId(d.activeProjectId);
+          skipNextGraphicColorRef.current=true;
+          setGraphic(assetFromCache(d.graphic));
+          setCnTexts(assetsFromCache(d.cnTexts));
+          setEnTexts(assetsFromCache(d.enTexts));
+          if(d.brandColor)setBrandColor(d.brandColor);
+          if(Array.isArray(d.auxiliaryColors))setAuxiliaryColors(d.auxiliaryColors);
+          if(typeof d.assetsConfirmed==="boolean")setAssetsConfirmed(d.assetsConfirmed);
+          if(Array.isArray(d.selectedExtensions))setSelectedExtensions(d.selectedExtensions);
+          if(Array.isArray(d.selectedBoundaries))setSelectedBoundaries(d.selectedBoundaries);
+          if(d.ratios)setRatios(d.ratios);
+          if(Array.isArray(d.materials))setMaterials(d.materials);
+          if(typeof d.rulesConfirmed==="boolean")setRulesConfirmed(d.rulesConfirmed);
+          if(typeof d.selectedRouteId==="string")setSelectedRouteId(d.selectedRouteId);
+          if(d.routeStudies)setRouteStudies(d.routeStudies);
+          if(typeof d.selectedStudyId==="string")setSelectedStudyId(d.selectedStudyId);
+          if(typeof d.studyConfirmed==="boolean")setStudyConfirmed(d.studyConfirmed);
+          if(typeof d.generated==="boolean")setGenerated(d.generated);
+          if(Array.isArray(d.approved))setApproved(d.approved);
+          if(Array.isArray(d.deleted))setDeleted(d.deleted);
+          if(d.layouts)setLayouts(d.layouts);
+        }
+      }
+    }catch(e){ console.warn("workspace restore failed",e); }
+    setWorkspaceHydrated(true);
+  },[]);
+
   useEffect(()=>{ const api=readApiSettings(); setCurrentModel(api.model||""); },[started,step,section]);
-  useEffect(()=>{ if(!graphic) return; const colors=extractSvgColors(graphic.raw); if(colors.length){ setBrandColor(colors[0]); setAuxiliaryColors(colors.slice(1,5)); } },[graphic]);
+
+  useEffect(()=>{
+    if(!graphic)return;
+    if(skipNextGraphicColorRef.current){skipNextGraphicColorRef.current=false;return;}
+    const colors=extractSvgColors(graphic.raw);
+    if(colors.length){setBrandColor(colors[0]);setAuxiliaryColors(colors.slice(1,5));}
+  },[graphic]);
+
   useEffect(()=>{ setProjects(prev=>prev.map(p=>p.id===activeProjectId?{...p,step,updatedAt:Date.now()}:p)); },[step,activeProjectId]);
+
+  // 自动保存测试现场：上传 SVG、当前步骤、颜色、解构选择、物料和生成结果。
+  useEffect(()=>{
+    if(!workspaceHydrated)return;
+    const timer=window.setTimeout(()=>{
+      try{
+        localStorage.setItem(WORKSPACE_CACHE_KEY,JSON.stringify({
+          version:WORKSPACE_CACHE_VERSION,
+          section,started,step,dark,projects,activeProjectId,
+          graphic:assetToCache(graphic),
+          cnTexts:cnTexts.map(assetToCache),
+          enTexts:enTexts.map(assetToCache),
+          brandColor,auxiliaryColors,assetsConfirmed,
+          selectedExtensions,selectedBoundaries,ratios,materials,rulesConfirmed,
+          selectedRouteId,routeStudies,selectedStudyId,studyConfirmed,
+          generated,approved,deleted,layouts
+        }));
+      }catch(e){ console.warn("workspace autosave failed",e); }
+    },250);
+    return()=>window.clearTimeout(timer);
+  },[
+    workspaceHydrated,section,started,step,dark,projects,activeProjectId,
+    graphic,cnTexts,enTexts,brandColor,auxiliaryColors,assetsConfirmed,
+    selectedExtensions,selectedBoundaries,ratios,materials,rulesConfirmed,
+    selectedRouteId,routeStudies,selectedStudyId,studyConfirmed,
+    generated,approved,deleted,layouts
+  ]);
+
+  const aiBusy=generating||deconstructing;
 
   const resetWorkspace=()=>{
     setStep("brand"); setGraphic(null); setCnTexts([]); setEnTexts([]); setBrandColor("#008FDB"); setAuxiliaryColors([]); setAssetsConfirmed(false);
     setSelectedExtensions(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); setSelectedBoundaries(boundaryOptions); setRatios({black:20,white:45,brand:30});
-    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setRouteStudies({}); setSelectedStudyId(""); setStudyConfirmed(false); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
+    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setRouteStudies({}); setSelectedStudyId(""); setStudyConfirmed(false); setGenerated(false); setGenerating(false); setDeconstructing(false); setApproved([]); setDeleted([]); setLayouts({});
   };
   const createProject=(name:string)=>{
     const clean=name.trim(); if(!clean) return;
@@ -91,7 +176,7 @@ export function WorkspaceShell(){
     setStarted(false);
     setSection("projects");
   };
-  const openCurrent=()=>{ setStep(activeProject?.step||"brand"); setStarted(true); };
+  const openCurrent=()=>{ setStep(activeProject?.step||"brand"); setSection("projects"); setStarted(true); };
   const switchProject=(id:string)=>{
     if(id===activeProjectId) return;
     const target=projects.find(p=>p.id===id); if(!target) return;
@@ -104,26 +189,26 @@ export function WorkspaceShell(){
   const move=(d:1|-1)=>setStep(steps[Math.max(0,Math.min(4,stepIndex+d))].id);
   const canContinue=useMemo(()=> step==="brand"?!!graphic:step==="references"?assetsConfirmed:step==="generate"?(!!selectedStudyId&&studyConfirmed):step==="review"?(generated&&approved.length>0):true,[step,graphic,assetsConfirmed,selectedStudyId,studyConfirmed,generated,approved.length]);
 
-  if(!started) return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject} onSelectProject={switchProject}/>;
+  if(!started || section!=="projects") return <Home section={section} setSection={setSection} dark={dark} setDark={setDark} projects={projects} activeProjectId={activeProjectId} onStart={openCurrent} onCreateProject={createProject} onSelectProject={switchProject}/>;
 
-  return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onExitWorkflow={()=>setStarted(false)}/><section className="workflow">
-    <header className="topbar"><div><button className="crumb" onClick={()=>setStarted(false)}>项目</button><span> / {activeProject?.name||"当前项目"}</span></div><div className="step-count">第 {stepIndex+1} 步，共 5 步</div></header><div className="progress"><span style={{width:`${((stepIndex+1)/5)*100}%`}}/></div>
-    <div className="stepper">{steps.map((x,i)=><button key={x.id} className={i<=stepIndex?"active":""} onClick={()=>i<=stepIndex&&setStep(x.id)}><i>{i+1}</i>{x.label}</button>)}</div>
+  return <main className={`shell ${dark?"dark":""}`}><Sidebar section={section} setSection={setSection} dark={dark} setDark={setDark} onExitWorkflow={()=>{}} busy={aiBusy}/><section className="workflow">
+    <header className="topbar"><div><button className="crumb" disabled={aiBusy} onClick={()=>setStarted(false)}>项目</button><span> / {activeProject?.name||"当前项目"}</span></div><div className="step-count">第 {stepIndex+1} 步，共 5 步</div></header><div className="progress"><span style={{width:`${((stepIndex+1)/5)*100}%`}}/></div>
+    <div className="stepper">{steps.map((x,i)=><button key={x.id} className={i<=stepIndex?"active":""} disabled={aiBusy} onClick={()=>!aiBusy&&i<=stepIndex&&setStep(x.id)}><i>{i+1}</i>{x.label}</button>)}</div>
     <div className="content">
       {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
       {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} ratios={ratios} setRatios={setRatios} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
-      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} routeStudies={routeStudies} setRouteStudies={setRouteStudies} selectedStudyId={selectedStudyId} setSelectedStudyId={setSelectedStudyId} studyConfirmed={studyConfirmed} setStudyConfirmed={setStudyConfirmed} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
+      {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} routeStudies={routeStudies} setRouteStudies={setRouteStudies} selectedStudyId={selectedStudyId} setSelectedStudyId={setSelectedStudyId} studyConfirmed={studyConfirmed} setStudyConfirmed={setStudyConfirmed} setDeconstructing={setDeconstructing} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
       {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} layouts={layouts} setLayouts={setLayouts} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null} selectedStudy={Object.values(routeStudies).flat().find(x=>x.id===selectedStudyId)||null}/>}
       {step==="deliver"&&<MockupStage graphic={graphic} brandColor={brandColor} materials={materials} approved={approved} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
     </div>
     <footer className="footer">
-      <button className="secondary footer-nav-button" onClick={()=>stepIndex===0?setStarted(false):move(-1)}>← 返回</button>
-      <button className={`primary footer-nav-button footer-primary ${canContinue?"is-ready":""}`} disabled={!canContinue} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button>
+      <button className="secondary footer-nav-button" disabled={aiBusy} onClick={()=>stepIndex===0?setStarted(false):move(-1)}>← 返回</button>
+      <button className={`primary footer-nav-button footer-primary ${canContinue&&!aiBusy?"is-ready":""}`} disabled={!canContinue||aiBusy} onClick={()=>stepIndex<4&&move(1)}>{stepIndex===4?"已到导出步骤":"继续 →"}</button>
     </footer>
   </section></main>;
 }
 
-function Sidebar({section,setSection,dark,setDark,onExitWorkflow}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;onExitWorkflow:()=>void}){ const names:Record<Section,string>={projects:"项目",library:"资料库",settings:"设置"}; const navigate=(target:Section)=>{setSection(target);onExitWorkflow();}; return <aside className="sidebar"><button type="button" className="mark mark-btn" onClick={()=>navigate("projects")}>DI</button><nav>{(["projects","library","settings"] as const).map(x=><button type="button" key={x} className={section===x?"nav-on":""} onClick={()=>navigate(x)}>{names[x]}</button>)}</nav><button type="button" className="theme-toggle" onClick={()=>setDark(!dark)}><span>{dark?"☀":"☾"}</span>{dark?"日间":"黑夜"}</button></aside>; }
+function Sidebar({section,setSection,dark,setDark,onExitWorkflow,busy=false}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;onExitWorkflow:()=>void;busy?:boolean}){ const names:Record<Section,string>={projects:"项目",library:"资料库",settings:"设置"}; const navigate=(target:Section)=>{if(busy&&target!==section)return;setSection(target);onExitWorkflow();}; return <aside className={`sidebar ${busy?"is-busy":""}`}><button type="button" className="mark mark-btn" disabled={busy&&section!=="projects"} onClick={()=>navigate("projects")}>DI</button><nav>{(["projects","library","settings"] as const).map(x=><button type="button" key={x} disabled={busy&&x!==section} className={section===x?"nav-on":""} onClick={()=>navigate(x)}>{names[x]}</button>)}</nav><button type="button" className="theme-toggle" onClick={()=>setDark(!dark)}><span>{dark?"☀":"☾"}</span>{dark?"日间":"黑夜"}</button>{busy&&<small className="sidebar-busy-note">AI 执行中</small>}</aside>; }
 function Home({section,setSection,dark,setDark,projects,activeProjectId,onStart,onCreateProject,onSelectProject}:{section:Section;setSection:(x:Section)=>void;dark:boolean;setDark:(x:boolean)=>void;projects:ProjectSummary[];activeProjectId:string;onStart:()=>void;onCreateProject:(name:string)=>void;onSelectProject:(id:string)=>void}){
   const [showNew,setShowNew]=useState(false); const [projectName,setProjectName]=useState("");
   const active=projects.find(p=>p.id===activeProjectId)||projects[0];
@@ -176,7 +261,7 @@ function StudyVisual({study,graphic}:{study:DeconstructionStudy;graphic:AssetFil
     {study.elements.map((el,i)=>graphic?<img key={i} src={graphic.url} alt="" style={{left:`${el.x}%`,top:`${el.y}%`,width:`${Math.max(12,el.scale)}%`,transform:`translate(-50%,-50%) rotate(${el.rotation}deg)`,opacity:el.opacity,clipPath:clip(el.clip)}}/>:null)}
   </div>
 }
-function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeStudies,setRouteStudies,selectedStudyId,setSelectedStudyId,studyConfirmed,setStudyConfirmed,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;routeStudies:Record<string,DeconstructionStudy[]>;setRouteStudies:(x:Record<string,DeconstructionStudy[]>)=>void;selectedStudyId:string;setSelectedStudyId:(x:string)=>void;studyConfirmed:boolean;setStudyConfirmed:(x:boolean)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
+function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeStudies,setRouteStudies,selectedStudyId,setSelectedStudyId,studyConfirmed,setStudyConfirmed,setDeconstructing,selectedExtensions,setSelectedExtensions}:{graphic:AssetFile|null;selectedRouteId:string;setSelectedRouteId:(x:string)=>void;routeStudies:Record<string,DeconstructionStudy[]>;setRouteStudies:(x:Record<string,DeconstructionStudy[]>)=>void;selectedStudyId:string;setSelectedStudyId:(x:string)=>void;studyConfirmed:boolean;setStudyConfirmed:(x:boolean)=>void;setDeconstructing:(x:boolean)=>void;selectedExtensions:string[];setSelectedExtensions:(x:string[])=>void}){
   const toggle=(x:string)=>{
     setSelectedExtensions(selectedExtensions.includes(x)?selectedExtensions.filter(v=>v!==x):[...selectedExtensions,x]);
     setStudyConfirmed(false);
@@ -204,6 +289,7 @@ function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeS
     const api=readApiSettings();
     if(!api.key||!api.model){setError("请先到「设置」完成 AI 连接。");return;}
     setLoading(true);
+    setDeconstructing(true);
     setError("");
     setSelectedStudyId("");
     setStudyConfirmed(false);
@@ -222,6 +308,7 @@ function DeconstructionRoutes({graphic,selectedRouteId,setSelectedRouteId,routeS
       setError(e instanceof Error?e.message:"解构失败");
     }finally{
       setLoading(false);
+      setDeconstructing(false);
     }
   };
 
@@ -572,9 +659,9 @@ function Settings(){
   const [key,setKey]=useState(""); const [model,setModel]=useState(""); const [baseUrl,setBaseUrl]=useState("");
   const [apiMode,setApiMode]=useState<"responses"|"chat">("responses"); const [remember,setRemember]=useState(false);
   const [verified,setVerified]=useState(false); const [testing,setTesting]=useState(false); const [message,setMessage]=useState("");
-  useEffect(()=>{const v=readApiSettings();setProvider(v.provider);setKey(v.key);setModel(v.model);setBaseUrl(v.baseUrl);setApiMode(v.apiMode);setRemember(v.remember);setVerified(false)},[]);
-  const current=():ApiSettings=>({provider,key:key.trim(),model:model.trim(),baseUrl:baseUrl.trim(),apiMode,remember});
-  const save=()=>{if(!key.trim()||!model.trim())return;writeApiSettings(current());setVerified(false);setMessage("配置已保存，建议先测试连接")};
+  useEffect(()=>{const v=readApiSettings();setProvider(v.provider);setKey(v.key);setModel(v.model);setBaseUrl(v.baseUrl);setApiMode(v.apiMode);setRemember(v.remember);setVerified(!!v.verified)},[]);
+  const current=(verifiedValue=verified):ApiSettings=>({provider,key:key.trim(),model:model.trim(),baseUrl:baseUrl.trim(),apiMode,remember,verified:verifiedValue});
+  const save=()=>{if(!key.trim()||!model.trim())return;writeApiSettings(current(verified));setMessage(verified?"已保存 · 当前连接验证仍然有效":"配置已保存，建议先测试连接")};
   const test=async()=>{
     if(!key.trim()||!model.trim()){setMessage("请先填写 API Key 和模型名");return;}
     if(provider==="compatible"&&!baseUrl.trim()){setMessage("请填写中转 API Base URL");return;}
@@ -582,7 +669,7 @@ function Settings(){
     try{
       const r=await fetch('/api/design',{method:'POST',headers:{'Content-Type':'application/json','x-openai-key':key.trim()},body:JSON.stringify({mode:'test',model:model.trim(),provider,baseUrl:baseUrl.trim(),apiMode})});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'连接失败');
-      writeApiSettings(current());setVerified(true);setMessage(`连接成功 · ${model.trim()} · ${apiMode==="responses"?"Responses":"Chat Completions"}`);
+      writeApiSettings(current(true));setVerified(true);setMessage(`连接成功 · ${model.trim()} · ${apiMode==="responses"?"Responses":"Chat Completions"}`);
     }catch(e){setMessage(e instanceof Error?e.message:'连接失败')}finally{setTesting(false)}
   };
   const clear=()=>{clearApiSettings();setKey("");setModel("");setBaseUrl("");setVerified(false);setMessage("已断开")};
