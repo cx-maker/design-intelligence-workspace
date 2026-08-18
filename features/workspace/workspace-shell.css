@@ -56,3 +56,14 @@
 .recent-project-card{appearance:none;width:100%;text-align:left;color:inherit;cursor:pointer;font:inherit;transition:border-color .16s ease,background .16s ease,transform .16s ease}
 .recent-project-card:hover{border-color:#4d5962;transform:translateY(-1px)}
 .dark .recent-project-card:hover{background:#25292d;border-color:#4a535b}
+
+/* v6.2 interaction reliability */
+.sidebar{z-index:20}
+.sidebar nav{position:relative;z-index:2}
+.sidebar nav button,.mark-btn,.theme-toggle{pointer-events:auto;cursor:pointer}
+.sidebar nav button{width:100%;text-align:left}
+.recent-projects{position:relative;z-index:2}
+.recent-project-card{position:relative;z-index:1;pointer-events:auto;cursor:pointer}
+.recent-project-card:hover{border-color:#69747d!important;background:#f7f8f8}
+.recent-project-card:active{transform:translateY(0) scale(.995)}
+.dark .recent-project-card:hover{background:#292d31!important;border-color:#5a6670!important}
