@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import React, { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 type WorkflowStep = "brand" | "references" | "generate" | "review" | "deliver";
 type Section = "projects" | "library" | "settings";
@@ -64,6 +64,7 @@ export function WorkspaceShell(){
   const [ratios,setRatios]=useState<Ratios>({black:20,white:45,brand:30}); const [materials,setMaterials]=useState<Material[]>(defaultMaterials); const [rulesConfirmed,setRulesConfirmed]=useState(false);
   const [selectedRouteId,setSelectedRouteId]=useState<string>("");
   const [generated,setGenerated]=useState(false); const [generating,setGenerating]=useState(false); const [approved,setApproved]=useState<string[]>([]); const [deleted,setDeleted]=useState<string[]>([]);
+  const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
   const [currentModel,setCurrentModel]=useState("");
 
   const activeProject=projects.find(p=>p.id===activeProjectId)||projects[0];
@@ -74,7 +75,7 @@ export function WorkspaceShell(){
   const resetWorkspace=()=>{
     setStep("brand"); setGraphic(null); setCnTexts([]); setEnTexts([]); setBrandColor("#008FDB"); setAuxiliaryColors([]); setAssetsConfirmed(false);
     setSelectedExtensions(["超大裁切","局部裁切","完整展示","黑白反白","图形拆解"]); setSelectedBoundaries(boundaryOptions); setRatios({black:20,white:45,brand:30});
-    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]);
+    setMaterials(defaultMaterials.map(x=>({...x}))); setRulesConfirmed(false); setSelectedRouteId(""); setGenerated(false); setGenerating(false); setApproved([]); setDeleted([]); setLayouts({});
   };
   const createProject=(name:string)=>{
     const clean=name.trim(); if(!clean) return;
@@ -107,7 +108,7 @@ export function WorkspaceShell(){
       {step==="brand"&&<ImportAssets graphic={graphic} setGraphic={setGraphic} cnTexts={cnTexts} setCnTexts={setCnTexts} enTexts={enTexts} setEnTexts={setEnTexts}/>}
       {step==="references"&&<ConfirmAssets graphic={graphic} cnTexts={cnTexts} enTexts={enTexts} brandColor={brandColor} setBrandColor={setBrandColor} auxiliaryColors={auxiliaryColors} setAuxiliaryColors={setAuxiliaryColors} ratios={ratios} setRatios={setRatios} confirmed={assetsConfirmed} setConfirmed={setAssetsConfirmed}/>}
       {step==="generate"&&<DeconstructionRoutes graphic={graphic} selectedRouteId={selectedRouteId} setSelectedRouteId={setSelectedRouteId} selectedExtensions={selectedExtensions} setSelectedExtensions={setSelectedExtensions}/>}
-      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
+      {step==="review"&&<GenerateAndReview graphic={graphic} brandColor={brandColor} auxiliaryColors={auxiliaryColors} ratios={ratios} selectedBoundaries={selectedBoundaries} materials={materials} setMaterials={setMaterials} layouts={layouts} setLayouts={setLayouts} selectedExtensions={selectedExtensions} approved={approved} setApproved={setApproved} deleted={deleted} setDeleted={setDeleted} generating={generating} setGenerating={setGenerating} generated={generated} setGenerated={setGenerated} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
       {step==="deliver"&&<MockupStage graphic={graphic} brandColor={brandColor} materials={materials} approved={approved} currentModel={currentModel} selectedRoute={routePresets.find(x=>x.id===selectedRouteId)||null}/>}
     </div>
     <footer className="footer">
@@ -219,9 +220,10 @@ function MaterialSetup({materials,onChange}:{materials:Material[];onChange:(x:Ma
   return <section className="material-setup"><div className="material-setup-head"><div><span className="rule-tag">本轮物料与画布</span><h3>先规定尺寸，再让 AI 在真实边界里做设计。</h3><p>同一轮物料共享一套网格、字体层级、图形语法与色彩逻辑，避免每张各做各的。</p></div><button className="secondary" onClick={add}>+ 添加物料</button></div><div className="material-setup-grid">{materials.map((m,index)=><article className={`material-setup-card ${m.enabled===false?"off":""}`} key={m.id}><div className="material-card-top"><label><input type="checkbox" checked={m.enabled!==false} onChange={e=>update(m.id,{enabled:e.target.checked})}/><b>{String(index+1).padStart(2,"0")} · {m.name}</b></label><button className="remove-btn" onClick={()=>onChange(materials.filter(x=>x.id!==m.id))}>删除</button></div><div className="material-row"><label>物料<input value={m.name} onChange={e=>update(m.id,{name:e.target.value,sizePreset:""})}/></label><label>常用尺寸<select value={m.sizePreset||""} onChange={e=>applyPreset(m,e.target.value)}><option value="">自定义</option>{(materialPresets[m.name]||[]).map(p=><option key={p.label} value={p.label}>{p.label}</option>)}</select></label></div><div className="material-row dimensions"><label>宽<input type="number" min="1" value={m.width||0} onChange={e=>update(m.id,{width:Number(e.target.value),sizePreset:""})}/></label><span>×</span><label>高<input type="number" min="1" value={m.height||0} onChange={e=>update(m.id,{height:Number(e.target.value),sizePreset:""})}/></label><label>单位<select value={m.unit||"mm"} onChange={e=>update(m.id,{unit:e.target.value as "mm"|"px"})}><option value="mm">mm</option><option value="px">px</option></select></label></div><label>必须出现的信息<textarea value={m.copy||""} onChange={e=>update(m.id,{copy:e.target.value})} placeholder="例如：品牌名 / 标题 / 副标题 / 日期 / 联系方式"/></label><label>设计要求<textarea value={m.description} onChange={e=>update(m.id,{description:e.target.value})} placeholder="例如：留白大、Logo 可超大裁切，但信息层级必须清晰。"/></label></article>)}</div></section>
 }
 
-function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,setMaterials,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel,selectedRoute}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];setMaterials:(x:Material[])=>void;selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string;selectedRoute:DeconstructionRoute|null}){
-  const [layouts,setLayouts]=useState<Record<string,DesignLayout>>({});
+function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBoundaries,materials,setMaterials,layouts,setLayouts,selectedExtensions,approved,setApproved,deleted,setDeleted,generating,setGenerating,generated,setGenerated,currentModel,selectedRoute}:{graphic:AssetFile|null;brandColor:string;auxiliaryColors:string[];ratios:Ratios;selectedBoundaries:string[];materials:Material[];setMaterials:(x:Material[])=>void;layouts:Record<string,DesignLayout>;setLayouts:React.Dispatch<React.SetStateAction<Record<string,DesignLayout>>>;selectedExtensions:string[];approved:string[];setApproved:(x:string[])=>void;deleted:string[];setDeleted:(x:string[])=>void;generating:boolean;setGenerating:(x:boolean)=>void;generated:boolean;setGenerated:(x:boolean)=>void;currentModel:string;selectedRoute:DeconstructionRoute|null}){
   const [editing,setEditing]=useState<Material|null>(null);
+  const [copyEditing,setCopyEditing]=useState<Material|null>(null);
+  const [copyDraft,setCopyDraft]=useState({headline:"",subline:"",microcopy:""});
   const [adjustText,setAdjustText]=useState("");
   const [error,setError]=useState("");
   const [loadingIds,setLoadingIds]=useState<string[]>([]);
@@ -336,7 +338,7 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
         const isBusy=busy(m.id);
         return <article className={`result-card ${isBusy?"is-generating":""}`} key={m.id}>
           <div className="preview-loading-wrap">
-            <DesignPreview layout={l} graphic={graphic} fallbackIndex={i}/>
+            <DesignPreview layout={l} graphic={graphic} material={m} fallbackIndex={i}/>
             {isBusy&&<div className="preview-sweep" aria-label="AI 正在生成"><span>AI 正在调整…</span></div>}
           </div>
           <div className="result-meta">
@@ -348,6 +350,7 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
                 {approved.includes(m.id)?"已保留 ✓":"保留"}
               </button>
               <button onClick={()=>{setEditing(m);setAdjustText("")}} disabled={isBusy}>调整</button>
+              <button onClick={()=>{const x=layouts[m.id];setCopyEditing(m);setCopyDraft({headline:x?.headline||"",subline:x?.subline||"",microcopy:x?.microcopy||""})}} disabled={isBusy}>文字</button>
               <button onClick={()=>redo(m)} disabled={isBusy}>{isBusy?"生成中…":"重做"}</button>
               <button className="danger-btn" onClick={()=>remove(m.id)} disabled={isBusy}>删除</button>
             </div>
@@ -374,9 +377,55 @@ function GenerateAndReview({graphic,brandColor,auxiliaryColors,ratios,selectedBo
         </div>
       </div>
     </div>}
+
+    {copyEditing&&<div className="adjust-overlay" onClick={()=>setCopyEditing(null)}>
+      <div className="adjust-panel copy-panel" onClick={e=>e.stopPropagation()}>
+        <span className="rule-tag">文字信息 · {copyEditing.name}</span>
+        <h3>直接修改这张平面里的文字。</h3>
+        <p>这里只改文字，不重新调用 AI，也不改变 Logo、网格和版式结构。</p>
+        <label>主标题<input value={copyDraft.headline} onChange={e=>setCopyDraft({...copyDraft,headline:e.target.value})}/></label>
+        <label>副信息<textarea value={copyDraft.subline} onChange={e=>setCopyDraft({...copyDraft,subline:e.target.value})}/></label>
+        <label>微型信息<input value={copyDraft.microcopy} onChange={e=>setCopyDraft({...copyDraft,microcopy:e.target.value})}/></label>
+        <div className="adjust-actions">
+          <button className="secondary" onClick={()=>setCopyEditing(null)}>取消</button>
+          <button className="primary" onClick={()=>{
+            const old=layouts[copyEditing.id];
+            if(old) setLayouts(prev=>({...prev,[copyEditing.id]:{...old,...copyDraft}}));
+            setCopyEditing(null);
+          }}>保存文字</button>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
-function DesignPreview({layout,graphic,fallbackIndex}:{layout?:DesignLayout;graphic:AssetFile|null;fallbackIndex:number}){ const bg=layout?.backgroundColor||(fallbackIndex%3===0?'#111111':fallbackIndex%3===1?'#FFFFFF':'#008FDB'); const pos=layout?.textPosition||'bottom-left'; const color=layout?.textColor||(bg==='#FFFFFF'?'#111111':'#FFFFFF'); return <div className="ai-design-preview" style={{background:bg}}>{graphic&&<img className="ai-logo" src={graphic.url} alt="" style={{left:`${layout?.logoX??65}%`,top:`${layout?.logoY??45}%`,width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`}}/>}<div className={`ai-copy ${pos}`} style={{color,textAlign:layout?.textAlign||"left"}}><small>{layout?.microcopy||"BRAND SYSTEM / 01"}</small><strong>{layout?.headline||layout?.concept||"Identity through form."}</strong><span>{layout?.subline||"A consistent visual language built from one recognizable mark."}</span></div></div>}
+function DesignPreview({layout,graphic,material,fallbackIndex}:{layout?:DesignLayout;graphic:AssetFile|null;material:Material;fallbackIndex:number}){
+  const bg=layout?.backgroundColor||(fallbackIndex%3===0?'#111111':fallbackIndex%3===1?'#FFFFFF':'#008FDB');
+  const pos=layout?.textPosition||'bottom-left';
+  const color=layout?.textColor||(bg==='#FFFFFF'?'#111111':'#FFFFFF');
+  const w=Math.max(1,material.width||90);
+  const h=Math.max(1,material.height||54);
+  const ratio=w/h;
+  const planeStyle:CSSProperties = ratio>=1
+    ? {width:"76%",aspectRatio:`${w}/${h}`,maxHeight:"82%"}
+    : {height:"82%",aspectRatio:`${w}/${h}`,maxWidth:"76%"};
+
+  return <div className="material-artboard">
+    <div className="material-plane ai-design-preview" style={{...planeStyle,background:bg}}>
+      {graphic&&<img className="ai-logo" src={graphic.url} alt="" style={{
+        left:`${layout?.logoX??65}%`,
+        top:`${layout?.logoY??45}%`,
+        width:`${Math.max(20,(layout?.logoScale??2)*28)}%`,
+        transform:`translate(-50%,-50%) rotate(${layout?.logoRotation??0}deg)`
+      }}/>}
+      <div className={`ai-copy ${pos}`} style={{color,textAlign:layout?.textAlign||"left"}}>
+        <small>{layout?.microcopy||"BRAND SYSTEM / 01"}</small>
+        <strong>{layout?.headline||layout?.concept||"Identity through form."}</strong>
+        <span>{layout?.subline||"A consistent visual language built from one recognizable mark."}</span>
+      </div>
+      <em className="material-size-tag">{w} × {h} {material.unit||"mm"}</em>
+    </div>
+  </div>
+}
 
 
 

@@ -292,3 +292,50 @@
 .ai-copy{position:absolute;z-index:3;width:38%;display:flex;flex-direction:column;gap:5px;line-height:1.08}.ai-copy.top-left{left:6%;top:7%}.ai-copy.top-right{right:6%;top:7%}.ai-copy.bottom-left{left:6%;bottom:7%}.ai-copy.bottom-right{right:6%;bottom:7%}
 .ai-copy small{font-size:7px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}.ai-copy strong{font-size:18px;font-weight:650;letter-spacing:-.035em}.ai-copy span{font-size:8px;line-height:1.35;opacity:.78}
 @media(max-width:1000px){.material-setup-grid{grid-template-columns:1fr}.material-setup-head{flex-direction:column}.ai-copy{width:44%}}
+
+
+/* v6.7 — physical artboard preview + editable copy */
+.material-artboard{
+  width:100%;
+  height:100%;
+  min-height:220px;
+  display:grid;
+  place-items:center;
+  background:#d7d9db;
+  overflow:hidden;
+  padding:20px;
+}
+.dark .material-artboard{background:#c8cbce}
+.material-plane{
+  position:relative!important;
+  flex:none!important;
+  overflow:hidden;
+  border-radius:2px;
+  box-shadow:0 2px 14px rgba(0,0,0,.13);
+}
+.material-size-tag{
+  position:absolute;
+  right:7px;
+  bottom:6px;
+  font-size:6px;
+  font-style:normal;
+  opacity:.35;
+}
+.preview-loading-wrap>.material-artboard{height:100%}
+.copy-panel label{
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  font-size:10px;
+  color:var(--muted);
+}
+.copy-panel input,.copy-panel textarea{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:transparent;
+  color:inherit;
+  padding:10px;
+  font:inherit;
+}
+.copy-panel textarea{min-height:72px;resize:vertical}
