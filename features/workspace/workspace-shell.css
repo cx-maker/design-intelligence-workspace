@@ -277,3 +277,18 @@
   .deconstruction-intro{grid-template-columns:1fr}
   .mockup-card{grid-template-columns:1fr}
 }
+
+/* iteration: material canvas + stronger typographic system */
+.ratio-panel-step2{margin-top:12px}
+.material-setup{margin:18px 0 22px;border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--panel)}
+.material-setup-head{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:14px}
+.material-setup-head h3{margin:7px 0 5px;font-size:18px}.material-setup-head p{margin:0;color:var(--muted);font-size:12px;max-width:620px}
+.material-setup-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.material-setup-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:var(--surface);display:flex;flex-direction:column;gap:10px}.material-setup-card.off{opacity:.42}
+.material-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.material-card-top label{display:flex;align-items:center;gap:7px;flex-direction:row}
+.material-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.material-row.dimensions{grid-template-columns:1fr auto 1fr .8fr;align-items:end}.material-row.dimensions>span{padding-bottom:9px;color:var(--muted)}
+.material-setup-card label{font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+.material-setup-card input,.material-setup-card select,.material-setup-card textarea{width:100%;border:1px solid var(--line);background:transparent;color:inherit;border-radius:7px;padding:8px;font:inherit}.material-setup-card textarea{min-height:58px;resize:vertical}
+.ai-copy{position:absolute;z-index:3;width:38%;display:flex;flex-direction:column;gap:5px;line-height:1.08}.ai-copy.top-left{left:6%;top:7%}.ai-copy.top-right{right:6%;top:7%}.ai-copy.bottom-left{left:6%;bottom:7%}.ai-copy.bottom-right{right:6%;bottom:7%}
+.ai-copy small{font-size:7px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}.ai-copy strong{font-size:18px;font-weight:650;letter-spacing:-.035em}.ai-copy span{font-size:8px;line-height:1.35;opacity:.78}
+@media(max-width:1000px){.material-setup-grid{grid-template-columns:1fr}.material-setup-head{flex-direction:column}.ai-copy{width:44%}}

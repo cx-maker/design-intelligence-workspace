@@ -22,13 +22,13 @@ async function readResponse(r:Response){
 
 const layoutItem = {
   type:"object", additionalProperties:false,
-  required:["materialId","concept","backgroundColor","logoScale","logoX","logoY","logoRotation","textPosition","textColor","rationale"],
+  required:["materialId","concept","backgroundColor","logoScale","logoX","logoY","logoRotation","textPosition","textColor","headline","subline","microcopy","textAlign","rationale"],
   properties:{
     materialId:{type:"string"},concept:{type:"string"},backgroundColor:{type:"string"},
     logoScale:{type:"number",minimum:0.6,maximum:5},logoX:{type:"number",minimum:-20,maximum:120},
     logoY:{type:"number",minimum:-20,maximum:120},logoRotation:{type:"number",minimum:-45,maximum:45},
     textPosition:{type:"string",enum:["top-left","top-right","bottom-left","bottom-right"]},
-    textColor:{type:"string"},rationale:{type:"string"}
+    textColor:{type:"string"},headline:{type:"string"},subline:{type:"string"},microcopy:{type:"string"},textAlign:{type:"string",enum:["left","center","right"]},rationale:{type:"string"}
   }
 };
 
@@ -63,7 +63,19 @@ export async function POST(req:NextRequest){
 
   const prompt=mode==="adjust"
    ?`你是品牌视觉延展设计助手。只对当前方案做用户明确要求的局部调整，不推翻未被要求修改的结构。当前方案：${JSON.stringify(currentLayout)}。调整要求：${instruction}。品牌约束：${JSON.stringify(context)}。物料：${JSON.stringify(materials)}。只返回合法 JSON。`
-   :`你是品牌视觉延展设计助手。根据已经确定的 Logo 和用户约束，为每个物料生成克制、现代、国际化的二维品牌版式参数。不要重新设计 Logo，只决定原始 Logo 的比例、位置、裁切感、背景和信息位置。品牌约束：${JSON.stringify(context)}。物料：${JSON.stringify(materials)}。参考图只用于感知调性、留白、密度和构图，不复制其中品牌元素。只返回合法 JSON。`;
+   :`你是一名资深品牌视觉设计总监。任务不是分别做几张 Logo 放置图，而是先建立一个统一视觉系统，再把同一系统应用到全部物料。
+必须遵守：
+1. 不重新设计 Logo，不改变原始路径；从 deconstructionRoute 与 selectedExtensions 提取统一视觉语法。
+2. 全部物料共享同一套网格、Logo 尺度策略、裁切规则、留白节奏、文字层级、色彩比例与信息密度。
+3. 严格尊重每个物料的 width / height / unit，把它当真实画布比例。
+4. 不能只有 Logo。每张必须建立至少三级信息：headline、subline、microcopy；基于 material.copy 组织真实感文案，不胡编事实数据。
+5. 允许超大尺度、边缘裁切、非对称网格、重复节奏，但必须服从当前路线；避免所有物料都变成 Logo 居中加左下小字。
+6. 色彩严格服从 ratios 权重，不要逐张随机换色。
+7. 先确定一个 system idea，再输出各物料参数；rationale 说明该物料如何继承统一系统。
+8. 参考图只学习调性、留白、密度、信息层级与构图方法，不复制其中品牌元素。
+品牌约束：${JSON.stringify(context)}。
+物料与真实尺寸：${JSON.stringify(materials)}。
+只返回合法 JSON。`;
   const schema={type:"object",additionalProperties:false,required:["layouts"],properties:{layouts:{type:"array",minItems:materials.length,maxItems:materials.length,items:layoutItem}}};
 
   if(apiMode==="chat"){
