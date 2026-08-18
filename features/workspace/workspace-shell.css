@@ -225,3 +225,55 @@
   .review-heading-row{display:grid}
   .model-badge{width:max-content}
 }
+
+
+/* v6.5 — deconstruction → flat layout → mockup */
+.deconstruction-page{max-width:980px;margin:auto}
+.deconstruction-intro{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:24px 0;padding:16px;border:1px solid var(--line);border-radius:11px;background:rgba(127,127,127,.04)}
+.deconstruction-logo{height:130px;border-radius:8px;overflow:hidden}
+.deconstruction-logo img{width:100%;height:100%;object-fit:contain;padding:18px}
+.deconstruction-intro p{font-size:11px;color:var(--muted);margin:5px 0}
+.route-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.route-card{appearance:none;text-align:left;border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--paper);color:inherit;cursor:pointer;transition:.16s ease;position:relative}
+.dark .route-card{background:#202326}
+.route-card:hover{transform:translateY(-1px);border-color:#68747d}
+.route-card.selected{border-color:var(--action-ready)!important;box-shadow:0 0 0 1px var(--action-ready) inset}
+.route-index{font-size:9px;color:var(--muted);letter-spacing:.08em}
+.route-card h3{font-size:17px;margin:12px 0 7px}
+.route-card p{font-size:11px;line-height:1.55;color:inherit;margin:0 0 8px}
+.route-card small{font-size:9px;line-height:1.5;color:var(--muted);display:block}
+.route-card>b{display:block;margin-top:14px;font-size:10px;color:var(--action-ready)}
+.route-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
+.route-tags span{font-size:8px;border:1px solid var(--line);padding:4px 6px;border-radius:999px;color:var(--muted)}
+.route-demo{height:86px;margin-top:10px;border-radius:8px;background:rgba(127,127,127,.07);position:relative;overflow:hidden}
+.route-demo i{position:absolute;height:10px;background:currentColor;opacity:.76}
+.route-demo i:nth-child(1){width:42%;left:12%;top:18%}.route-demo i:nth-child(2){width:62%;left:20%;top:39%}.route-demo i:nth-child(3){width:28%;left:48%;top:60%}.route-demo i:nth-child(4){width:48%;left:8%;top:75%}
+.route-card:nth-child(2) .route-demo i:nth-child(2){opacity:.14}
+.route-card:nth-child(3) .route-demo i{width:14%!important}
+.route-card:nth-child(4) .route-demo i:nth-child(2){transform:rotate(-25deg);transform-origin:left center}
+.route-guidance{margin-top:14px;padding:18px;border:1px solid var(--line);border-radius:11px}
+.review-badges{display:flex;gap:8px;flex-wrap:wrap}
+
+.mockup-page{max-width:940px;margin:auto}
+.mockup-context{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:22px 0}
+.mockup-context>div{display:grid;gap:3px;border:1px solid var(--line);border-radius:8px;padding:11px 12px}
+.mockup-context span{font-size:9px;color:var(--muted)}.mockup-context b{font-size:11px}
+.mockup-list{display:grid;gap:12px}
+.mockup-card{display:grid;grid-template-columns:1.25fr 1fr;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.dark .mockup-card{background:#202326}
+.mockup-preview{min-height:260px;position:relative;background:#111;display:grid;place-items:center;overflow:hidden}
+.mockup-plane{width:66%;height:58%;border-radius:5px;display:grid;place-items:center;position:relative;box-shadow:0 16px 50px rgba(0,0,0,.24)}
+.mockup-plane img{max-width:46%;max-height:46%;object-fit:contain}
+.mockup-plane small{position:absolute;left:12px;bottom:10px;font-size:9px;font-weight:800}
+.mockup-placeholder{position:absolute;inset:auto 16px 16px;color:#aaa;font-size:9px;line-height:1.5}
+.mockup-scene-label{position:absolute;right:12px;bottom:10px;font-size:8px;padding:5px 6px;background:rgba(0,0,0,.56);color:#fff;border-radius:4px}
+.mockup-preview.ready{background:linear-gradient(145deg,#d8d5cf,#9fa3a7)}
+.mockup-meta{padding:18px;display:grid;align-content:center;gap:10px}
+.mockup-meta h3{margin:0;font-size:16px}.mockup-meta p{font-size:10px;line-height:1.55;color:var(--muted);margin:0}
+.mockup-meta .primary{width:max-content}
+
+@media(max-width:800px){
+  .route-grid,.mockup-context{grid-template-columns:1fr}
+  .deconstruction-intro{grid-template-columns:1fr}
+  .mockup-card{grid-template-columns:1fr}
+}
